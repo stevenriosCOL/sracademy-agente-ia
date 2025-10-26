@@ -4,7 +4,8 @@ const Logger = require('../utils/logger.util');
 
 class ManyChatService {
   constructor() {
-    this.apiUrl = config.MANYCHAT_API_URL;
+    // URL base para WhatsApp API de ManyChat
+    this.apiUrl = 'https://api.manychat.com/fb/sending/sendContent';
     this.token = config.MANYCHAT_TOKEN;
     
     this.axiosInstance = axios.create({
@@ -18,28 +19,28 @@ class ManyChatService {
   }
 
   /**
-   * Envía un mensaje de texto a ManyChat
-   * Formato exacto del JSON de n8n
+   * Envía un mensaje de texto a ManyChat (WhatsApp)
+   * Formato actualizado para WhatsApp
    */
   async sendMessage(subscriberId, text) {
     try {
       Logger.info('📤 Enviando a ManyChat', { subscriberId, textLength: text.length });
 
+      // Formato correcto para WhatsApp en ManyChat
       const payload = {
         subscriber_id: subscriberId,
         data: {
-          version: 'v2',
+          version: "v2",
           content: {
-            type: 'whatsapp',
             messages: [
               {
-                type: 'text',
+                type: "text",
                 text: text
               }
             ]
           }
         },
-        message_tag: 'ACCOUNT_UPDATE'
+        message_tag: "ACCOUNT_UPDATE"
       };
 
       const response = await this.axiosInstance.post('', payload);
@@ -55,7 +56,8 @@ class ManyChatService {
       Logger.error('❌ Error enviando a ManyChat:', {
         subscriberId,
         error: error.message,
-        response: error.response?.data
+        status: error.response?.status,
+        data: error.response?.data
       });
 
       return { 
