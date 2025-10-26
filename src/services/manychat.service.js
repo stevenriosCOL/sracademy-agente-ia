@@ -4,7 +4,6 @@ const Logger = require('../utils/logger.util');
 
 class ManyChatService {
   constructor() {
-    // URL base para WhatsApp API de ManyChat
     this.apiUrl = 'https://api.manychat.com/fb/sending/sendContent';
     this.token = config.MANYCHAT_TOKEN;
     
@@ -14,32 +13,35 @@ class ManyChatService {
         'Authorization': `Bearer ${this.token}`,
         'Content-Type': 'application/json'
       },
-      timeout: 10000 // 10 segundos
+      timeout: 10000
     });
   }
 
   /**
-   * Envía un mensaje de texto a ManyChat (WhatsApp)
-   * Formato actualizado para WhatsApp
+   * Envía un mensaje de texto a ManyChat WhatsApp
+   * Formato EXACTO del JSON de n8n que funciona
    */
   async sendMessage(subscriberId, text) {
     try {
       Logger.info('📤 Enviando a ManyChat', { subscriberId, textLength: text.length });
 
-// Formato alternativo sin "content" wrapper
-const payload = {
-  subscriber_id: subscriberId,
-  data: {
-    version: "v2",
-    messages: [
-      {
-        type: "text",
-        text: text
-      }
-    ]
-  },
-  message_tag: "ACCOUNT_UPDATE"
-};
+      // Formato EXACTO de n8n que funcionaba
+      const payload = {
+        subscriber_id: subscriberId,
+        data: {
+          version: "v2",
+          content: {
+            type: "whatsapp",  // ← ESTO ERA LO QUE FALTABA
+            messages: [
+              {
+                type: "text",
+                text: text
+              }
+            ]
+          }
+        },
+        message_tag: "ACCOUNT_UPDATE"
+      };
 
       const response = await this.axiosInstance.post('', payload);
 
