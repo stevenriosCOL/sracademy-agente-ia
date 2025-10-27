@@ -150,4 +150,92 @@ router.post('/vuelasim-bot', async (req, res) => {
   }
 });
 
+/**
+ * POST /webhook/feedback
+ * Webhook para recibir calificaciones de satisfacción de ManyChat
+ */
+router.post('/feedback', async (req, res) => {
+  try {
+    Logger.info('⭐ Feedback recibido', { body: req.body });
+
+    // 1. Extraer datos del body
+    const body = req.body || {};
+    let subscriberId = body.subscriber_id || 'unknown';
+    const calificacion = body.calificacion || '';
+    const nombre = body.nombre || body.first_name || 'usuario';
+
+    // Limpiar subscriber_id
+    subscriberId = String(subscriberId).replace(/^user:/, '').trim();
+
+    // 2. Validar datos básicos
+    if (!subscriberId || !calificacion) {
+      Logger.warn('⚠️ Datos incompletos en feedback', { subscriberId, calificacion });
+      return res.status(400).json({
+        status: 'error',
+        message: 'Faltan datos requeridos: subscriber_id y calificacion'
+      });
+    }
+
+    // 3. Normalizar calificación a MINÚSCULA
+    const calificacionNormalizada = calificacion.toLowerCase().trim();
+
+    // 4. Validar que la calificación sea válida
+    const calificacionesValidas = ['excelente', 'buena', 'regular', 'mala'];
+    if (!calificacionesValidas.includes(calificacionNormalizada)) {
+      Logger.warn('⚠️ Calificación inválida', { calificacion: calificacionNormalizada });
+      return res.status(400).json({
+        status: 'error',
+        message: 'Calificación inválida. Debe ser: excelente, buena, regular o mala'
+      });
+    }
+
+    // 5. Buscar la última conversación para obtener la categoría
+    const lastConversation = await supabaseService.getLastConversation(subscriberId);
+
+    Logger.info('🔍 Última conversación', { 
+      subscriberId, 
+      categoria: lastConversation?.categoria || 'sin categoria' 
+    });
+
+    // 6. Guardar feedback en Supabase
+    const saved = await supabaseService.saveFeedback({
+      subscriber_id: subscriberId,
+      nombre_cliente: nombre,
+      calificacion: calificacionNormalizada,
+      categoria_conversacion: lastConversation?.categoria || null
+    });
+
+    if (saved) {
+      Logger.info('✅ Feedback guardado exitosamente', { 
+        subscriberId, 
+        calificacion: calificacionNormalizada 
+      });
+
+      return res.status(200).json({
+        status: 'success',
+        message: 'Feedback guardado correctamente',
+        data: {
+          subscriber_id: subscriberId,
+          calificacion: calificacionNormalizada,
+          categoria_conversacion: lastConversation?.categoria || null
+        }
+      });
+    } else {
+      Logger.error('❌ Error guardando feedback en Supabase');
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error guardando feedback en base de datos'
+      });
+    }
+
+  } catch (error) {
+    Logger.error('❌ Error procesando feedback:', error);
+    
+    return res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor'
+    });
+  }
+});
+
 module.exports = router;
