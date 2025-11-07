@@ -12,6 +12,7 @@ const sanitizeInput = (text) => {
   return String(text).trim().slice(0, 1000); // Max 1000 chars
 };
 const Logger = require('../utils/logger.util');
+const mercadopagoService = require('../services/mercadopago.service');
 
 /**
  * Webhook principal de ManyChat para Sensora AI
@@ -112,43 +113,82 @@ router.post('/', async (req, res) => {
     // DETECCIÓN DE DATOS PARA GENERAR LINK (nombre + teléfono en el mensaje)
     const paymentData = extractPaymentData(mensaje, nombre, phone);
     if (paymentData.hasData) {
-      Logger.info('💳 Generando link de pago', paymentData);
-      
-      const paymentResult = await manychatService.generatePaymentLink(
-        paymentData.nombre,
-        paymentData.whatsapp,
-        25
-      );
+      Logger.info('💳 Generando link de pago (nuevo flujo MP + Supabase)', paymentData);
 
-      if (paymentResult.success) {
-        const response = `🧾 ¡Excelente! Aquí tienes tu enlace de pago personalizado:
+      // 1) Generar código de sesión
+      const codigoSesion = mercadopagoService.generateSessionCode();
 
-${paymentResult.link}
+      // 2) Crear link de pago en Mercado Pago
+      const mpResult = await mercadopagoService.createPaymentLink(25, codigoSesion, paymentData.nombre);
 
-🔖 *Código de sesión:* ${paymentResult.codigo}
+      if (mpResult.success) {
+        const linkPago = mpResult.link_pago;
+
+        // 3) Guardar en Supabase
+        await supabaseService.savePayment({
+          subscriberId: subscriber_id,
+          nombreCliente: paymentData.nombre,
+          whatsapp: paymentData.whatsapp,
+          monto: 25,
+          codigoSesion,
+          linkPago,
+          estadoPago: 'pending',
+          metadata: {
+            source: 'manychat_webhook',
+            raw_message: mensaje
+          }
+        });
+
+        // 4) Mensaje para el usuario
+        const response = `🧾 ¡Excelente, ${nombre}! Aquí tienes tu enlace de pago personalizado:
+
+${linkPago}
+
+🔖 *Código de sesión:* ${codigoSesion}
 
 📌 Tu sesión se agenda después de completar el pago.
-🧠 Al pagar recibirás un código (P-XXXXX) por email. Envíamelo aquí para coordinar tu horario.
+🧠 Cuando tu pago esté aprobado, recibirás un código (P-XXXXX) y podremos coordinar tu horario.
 
-💡 Tip: El pago de $25 USD se descuenta si decides trabajar con nosotros.`;
+💡 El pago de $25 USD se descuenta si decides trabajar con nosotros.`;
 
         await supabaseService.saveAnalytics({
-          subscriber_id,
-          nombre_cliente: nombre,
+          subscriberId: subscriber_id,
+          nombre: nombre,
           categoria: 'LINK_PAGO_GENERADO',
-          mensaje_cliente: mensaje,
-          respuesta_bot: response,
-          fue_escalado: false,
-          duracion_ms: Date.now() - startTime,
+          mensaje: mensaje,
+          respuesta: response,
+          fueEscalado: false,
+          duracionMs: Date.now() - startTime,
           idioma: 'es'
         });
 
-        return res.json({ response });
+        return res.json({
+          response,
+          link_pago: linkPago,
+          codigo_sesion: codigoSesion
+        });
       } else {
         const response = `Disculpa, hubo un error generando tu link de pago. Por favor escríbeme a info@getsensora.com y te ayudo directamente.`;
-        return res.json({ response });
+
+        await supabaseService.saveAnalytics({
+          subscriberId: subscriber_id,
+          nombre: nombre,
+          categoria: 'ERROR_PAGO',
+          mensaje: mensaje,
+          respuesta: response,
+          fueEscalado: true,
+          duracionMs: Date.now() - startTime,
+          idioma: 'es'
+        });
+
+        return res.json({
+          response,
+          link_pago: null,
+          codigo_sesion: null
+        });
       }
     }
+
 
     // 3. Rate limiting (solo para conversaciones normales)
     const rateLimitResult = await rateLimitService.checkRateLimit(subscriber_id);

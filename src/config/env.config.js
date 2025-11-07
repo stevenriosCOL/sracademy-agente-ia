@@ -14,6 +14,9 @@ module.exports = {
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
 
+  // Mercado Pago
+  MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
+
   // Redis
   REDIS_URL: process.env.REDIS_URL,
   USE_REDIS: process.env.USE_REDIS === 'true',
@@ -23,7 +26,7 @@ module.exports = {
   MANYCHAT_API_URL: process.env.MANYCHAT_API_URL || 'https://api.manychat.com/fb/sending/sendContent',
 
   // Admin
-  ADMIN_SUBSCRIBER_ID: process.env.ADMIN_SUBSCRIBER_ID || '312252988',
+  ADMIN_SUBSCRIBER_ID: process.env.ADMIN_SUBSCRIBER_ID || '1263215068',
 
   // Rate Limiting
   RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX) || 30,

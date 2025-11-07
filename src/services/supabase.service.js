@@ -274,6 +274,43 @@ class SupabaseService {
     }
   }
 
+    /**
+   * Guardar registro de pago (link generado) en Supabase
+   */
+  async savePayment(data) {
+    try {
+      const { error } = await this.supabase
+        .from('sensora_payments') // 👈 asegúrate de crear esta tabla en Supabase
+        .insert({
+          subscriber_id: data.subscriberId,
+          nombre_cliente: data.nombreCliente,
+          whatsapp: data.whatsapp,
+          monto: data.monto,
+          codigo_sesion: data.codigoSesion,
+          link_pago: data.linkPago,
+          estado_pago: data.estadoPago || 'pending',
+          metadata: data.metadata || null,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        Logger.error('Error guardando pago en Supabase:', error);
+        return false;
+      }
+
+      Logger.info('✅ Pago guardado en Supabase', {
+        subscriberId: data.subscriberId,
+        codigoSesion: data.codigoSesion
+      });
+
+      return true;
+    } catch (error) {
+      Logger.error('Error en savePayment:', error);
+      return false;
+    }
+  }
+
+
   /**
    * Obtener última conversación de un usuario (para asociar feedback)
    */
