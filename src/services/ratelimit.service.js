@@ -104,9 +104,9 @@ class RateLimitService {
    */
   getRateLimitMessage(language = 'es') {
     const messages = {
-      es: '⚠️ Has alcanzado el límite de 30 mensajes por día. Por favor, intenta mañana o contáctanos en hola@vuelasim.com',
-      en: '⚠️ You have reached the limit of 30 messages per day. Please try again tomorrow or contact us at hola@vuelasim.com',
-      pt: '⚠️ Você atingiu o limite de 30 mensagens por dia. Por favor, tente amanhã ou entre em contato em hola@vuelasim.com'
+      es: '⚠️ Has alcanzado el límite de 30 mensajes por día. Por favor, intenta mañana o contáctanos en info@getsensora.com',
+      en: '⚠️ You have reached the limit of 30 messages per day. Please try again tomorrow or contact us at info@getsensora.com',
+      pt: '⚠️ Você atingiu o limite de 30 mensagens por dia. Por favor, tente amanhã ou entre em contato em info@getsensora.com'
     };
 
     return messages[language] || messages.es;

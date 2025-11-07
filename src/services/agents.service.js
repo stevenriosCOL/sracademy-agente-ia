@@ -270,11 +270,11 @@ Máximo 3-4 líneas.`,
    */
   getEscalationMessage(language) {
     const messages = {
-      es: 'Entiendo que necesitas ayuda más específica. Te he conectado con nuestro equipo de soporte. Escribeles a hola@vuelasim.com con tu consulta detallada y te responderán lo antes posible. También he notificado a nuestro equipo sobre tu caso.',
-      
-      en: 'I understand you need more specific help. I have connected you with our support team. Write to hola@vuelasim.com with your detailed inquiry and they will respond as soon as possible. I have also notified our team about your case.',
-      
-      pt: 'Entendo que você precisa de ajuda mais específica. Conectei você com nossa equipe de suporte. Escreva para hola@vuelasim.com com sua consulta detalhada e eles responderão o mais rápido possível. Também notifiquei nossa equipe sobre seu caso.'
+      es: 'Entiendo que necesitas ayuda más específica. Te he conectado con nuestro equipo de soporte. Escribeles a info@getsensora.com con tu consulta detallada y te responderán lo antes posible. También he notificado a nuestro equipo sobre tu caso.',
+
+      en: 'I understand you need more specific help. I have connected you with our support team. Write to info@getsensora.com with your detailed inquiry and they will respond as soon as possible. I have also notified our team about your case.',
+
+      pt: 'Entendo que você precisa de ajuda mais específica. Conectei você com nossa equipe de suporte. Escreva para info@getsensora.com com sua consulta detalhada e eles responderão o mais rápido possível. Também notifiquei nossa equipe sobre seu caso.'
     };
 
     return messages[language] || messages.es;
@@ -285,9 +285,9 @@ Máximo 3-4 líneas.`,
    */
   getFallbackMessage(language) {
     const messages = {
-      es: 'Disculpa, tuve un problema técnico. ¿Podrías repetir tu consulta? Si el problema persiste, escríbenos a hola@vuelasim.com',
-      en: 'Sorry, I had a technical issue. Could you repeat your question? If the problem persists, write to us at hola@vuelasim.com',
-      pt: 'Desculpe, tive um problema técnico. Você poderia repetir sua consulta? Se o problema persistir, escreva para hola@vuelasim.com'
+      es: 'Disculpa, tuve un problema técnico. ¿Podrías repetir tu consulta? Si el problema persiste, escríbenos a info@getsensora.com',
+      en: 'Sorry, I had a technical issue. Could you repeat your question? If the problem persists, write to us at info@getsensora.com',
+      pt: 'Desculpe, tive um problema técnico. Você poderia repetir sua consulta? Se o problema persistir, escreva para info@getsensora.com'
     };
 
     return messages[language] || messages.es;
