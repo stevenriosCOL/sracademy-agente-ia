@@ -1,4 +1,4 @@
-const express = require('router');
+const express = require('express');
 const router = express.Router();
 const manychatService = require('../services/manychat.service');
 const Logger = require('../utils/logger.util');
