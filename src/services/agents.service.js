@@ -268,17 +268,24 @@ Máximo 3-4 líneas.`,
    * Mensaje de escalamiento multiidioma
    * Exacto del JSON de n8n
    */
-  getEscalationMessage(language) {
-    const messages = {
-      es: 'Entiendo que necesitas ayuda más específica. Te he conectado con nuestro equipo de soporte. Escribeles a info@getsensora.com con tu consulta detallada y te responderán lo antes posible. También he notificado a nuestro equipo sobre tu caso.',
+getEscalationMessage(language) {
+  const messages = {
+    es: `Entiendo que necesitas una atención más personalizada 🤝  
+Ya he notificado a nuestro equipo y uno de nuestros especialistas de *Sensora AI* te contactará directamente en este chat para ayudarte con tu caso.  
+Gracias por tu paciencia 💡`,
 
-      en: 'I understand you need more specific help. I have connected you with our support team. Write to info@getsensora.com with your detailed inquiry and they will respond as soon as possible. I have also notified our team about your case.',
+    en: `I understand you need more personalized attention 🤝  
+I've notified our team and one of our *Sensora AI* specialists will contact you directly here to assist with your case.  
+Thank you for your patience 💡`,
 
-      pt: 'Entendo que você precisa de ajuda mais específica. Conectei você com nossa equipe de suporte. Escreva para info@getsensora.com com sua consulta detalhada e eles responderão o mais rápido possível. Também notifiquei nossa equipe sobre seu caso.'
-    };
+    pt: `Entendo que você precisa de um atendimento mais personalizado 🤝  
+Já avisei nossa equipe e um dos nossos especialistas da *Sensora AI* entrará em contato com você aqui mesmo para ajudar no seu caso.  
+Obrigado pela paciência 💡`
+  };
 
-    return messages[language] || messages.es;
-  }
+  return messages[language] || messages.es;
+}
+
 
   /**
    * Mensaje de fallback en caso de error
