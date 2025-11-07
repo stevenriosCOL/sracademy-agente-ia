@@ -4,6 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const webhookRoutes = require('./routes/webhook.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
+const paymentRoutes = require('./routes/payment.routes');
 const Logger = require('./utils/logger.util');
 
 const app = express();
@@ -22,7 +23,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging de requests (solo en desarrollo)
+// Logging de requests
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
@@ -44,13 +45,14 @@ app.get('/health', (req, res) => {
 
 app.get('/', (req, res) => {
   res.status(200).json({
-    message: '🤖 VuelaSim Super Agente API',
+    message: '🤖 Sensora AI - Super Agente API',
     version: '1.0.0',
     status: 'running',
     endpoints: {
       health: 'GET /health',
-      webhook: 'POST /webhook/vuelasim-bot',
-      feedback: 'POST /webhook/feedback-vuelasim'
+      webhook: 'POST /webhook',
+      feedback: 'POST /webhook/feedback-sensora',
+      payment: 'POST /payment/generate-link'
     }
   });
 });
@@ -61,6 +63,7 @@ app.get('/', (req, res) => {
 
 app.use('/webhook', webhookRoutes);
 app.use('/webhook', feedbackRoutes);
+app.use('/payment', paymentRoutes);
 
 // =====================
 // MANEJO DE ERRORES 404

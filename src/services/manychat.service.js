@@ -5,7 +5,7 @@ const Logger = require('../utils/logger.util');
 class ManyChatService {
   constructor() {
     this.apiUrl = 'https://api.manychat.com/fb/sending/sendContent';
-    this.token = config.MANYCHAT_TOKEN;
+    this.token = config.MANYCHAT_API_KEY;
     
     this.axiosInstance = axios.create({
       baseURL: this.apiUrl,
@@ -17,6 +17,9 @@ class ManyChatService {
     });
   }
 
+  /**
+   * Enviar mensaje a usuario vía ManyChat
+   */
   async sendMessage(subscriberId, text) {
     try {
       Logger.info('📤 Enviando a ManyChat', { subscriberId, textLength: text.length });
@@ -26,7 +29,6 @@ class ManyChatService {
         data: {
           version: "v2",
           content: {
-            type: "whatsapp",
             messages: [
               {
                 type: "text",
@@ -38,10 +40,6 @@ class ManyChatService {
         message_tag: "ACCOUNT_UPDATE"
       };
 
-      // LOG EL PAYLOAD COMPLETO
-      console.log('🔍 PAYLOAD COMPLETO A MANYCHAT:');
-      console.log(JSON.stringify(payload, null, 2));
-
       const response = await this.axiosInstance.post('', payload);
 
       if (response.status === 200) {
@@ -52,19 +50,11 @@ class ManyChatService {
       return { success: false, error: 'Respuesta inesperada de ManyChat' };
 
     } catch (error) {
-      // LOG COMPLETO Y DETALLADO DEL ERROR
-      console.log('❌ ERROR COMPLETO DE MANYCHAT:');
-      console.log('Status:', error.response?.status);
-      console.log('Status Text:', error.response?.statusText);
-      console.log('Data:', JSON.stringify(error.response?.data, null, 2));
-      console.log('Details Messages:', JSON.stringify(error.response?.data?.details?.messages, null, 2));
-      
       Logger.error('❌ Error enviando a ManyChat:', {
         subscriberId,
         error: error.message,
         status: error.response?.status,
-        fullError: error.response?.data,
-        detailsMessages: error.response?.data?.details?.messages
+        data: error.response?.data
       });
 
       return { 
@@ -74,21 +64,26 @@ class ManyChatService {
     }
   }
 
+  /**
+   * Notificar a admin sobre escalamiento o evento importante
+   */
   async notifyAdmin(escalationData) {
     try {
       const { subscriberId, nombre, mensaje, timestamp } = escalationData;
 
-      const adminMessage = `🚨 ESCALAMIENTO
+      const adminMessage = `🚨 *NOTIFICACIÓN SENSORA AI*
 
-Cliente: ${nombre}
-ID: ${subscriberId}
-Mensaje: "${mensaje}"
-Fecha: ${timestamp}`;
+*Cliente:* ${nombre}
+*ID:* ${subscriberId}
+*Mensaje:* "${mensaje}"
+*Fecha:* ${timestamp}
+
+Requiere atención humana.`;
 
       const result = await this.sendMessage(config.ADMIN_SUBSCRIBER_ID, adminMessage);
 
       if (result.success) {
-        Logger.info('✅ Admin notificado sobre escalamiento', { subscriberId });
+        Logger.info('✅ Admin notificado', { subscriberId });
       } else {
         Logger.error('❌ Error notificando admin', { subscriberId });
       }
@@ -98,6 +93,44 @@ Fecha: ${timestamp}`;
     } catch (error) {
       Logger.error('Error en notifyAdmin:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Generar link de pago para consultoría (llama a tu backend)
+   */
+  async generatePaymentLink(nombre, whatsapp, monto = 25) {
+    try {
+      Logger.info('💳 Generando link de pago', { nombre, whatsapp, monto });
+
+      const response = await axios.post(
+        'https://backend-sensora-2025-production.up.railway.app/webhooks/manychat',
+        {
+          nombre,
+          whatsapp,
+          monto: monto.toString()
+        },
+        { timeout: 10000 }
+      );
+
+      if (response.data && response.data.link && response.data.codigo) {
+        Logger.info('✅ Link de pago generado', { codigo: response.data.codigo });
+        return {
+          success: true,
+          link: response.data.link,
+          codigo: response.data.codigo
+        };
+      }
+
+      Logger.error('Respuesta inesperada del backend de pagos:', response.data);
+      return { success: false, error: 'Respuesta inesperada' };
+
+    } catch (error) {
+      Logger.error('Error generando link de pago:', error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
     }
   }
 }

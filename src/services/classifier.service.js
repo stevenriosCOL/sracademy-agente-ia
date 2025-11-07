@@ -11,13 +11,13 @@ class ClassifierService {
 
   /**
    * Clasifica el mensaje del usuario en una categoría
-   * Usa GPT-4o-mini con temperatura 0.1 (como "LLM Policia" en n8n)
+   * Usa GPT-4o-mini con temperatura 0.1
+   * CATEGORÍAS PARA SENSORA AI: CONSULTA, DIAGNOSTICO, TECNICO, ESCALAMIENTO
    */
   async classify(message, language = 'es') {
     try {
       Logger.info('🔍 Clasificando mensaje...', { length: message.length, language });
 
-      // Prompt ACTUALIZADO con reglas más estrictas para ESCALAMIENTO
       const prompt = this.getClassifierPrompt();
 
       const completion = await this.openai.chat.completions.create({
@@ -32,55 +32,56 @@ class ClassifierService {
 
       const category = completion.choices[0].message.content.trim().toUpperCase();
 
-      // Validar que la categoría sea válida
-      const validCategories = ['VENTAS', 'SOPORTE', 'TECNICO', 'ESCALAMIENTO'];
-      const finalCategory = validCategories.includes(category) ? category : 'VENTAS'; // Default a VENTAS, no ESCALAMIENTO
+      // Validar categoría
+      const validCategories = ['CONSULTA', 'DIAGNOSTICO', 'TECNICO', 'ESCALAMIENTO'];
+      const finalCategory = validCategories.includes(category) ? category : 'CONSULTA';
 
       Logger.info(`✅ Mensaje clasificado: ${finalCategory}`);
 
       return finalCategory;
     } catch (error) {
       Logger.error('Error clasificando mensaje:', error);
-      // En caso de error, ir a VENTAS (no ESCALAMIENTO)
-      return 'VENTAS';
+      return 'CONSULTA'; // Fallback seguro
     }
   }
 
   /**
-   * Prompt del clasificador ACTUALIZADO con reglas MÁS ESTRICTAS para ESCALAMIENTO
+   * Prompt del clasificador para Sensora AI
    */
   getClassifierPrompt() {
-    return `Clasifica el mensaje del cliente en UNA de estas 4 categorías:
+    return `Clasifica el mensaje del cliente en UNA de estas 4 categorías para Sensora AI (empresa de automatización con IA):
 
-VENTAS: saludos, planes, precios, destinos, compras, recomendaciones, preguntas generales
-SOPORTE: QR no llegó, pagos, reembolsos, órdenes, problemas con compra
-TECNICO: instalación, QR no escanea, sin internet, activación, configuración
-ESCALAMIENTO: SOLO si el cliente pide EXPLÍCITAMENTE hablar con un humano o está MUY frustrado
+CONSULTA: saludos, preguntas generales sobre qué hace Sensora AI, cómo funciona, precios, sectores que atiende, preguntas sobre automatización en general, dudas comerciales básicas
 
-REGLAS CRÍTICAS PARA ESCALAMIENTO:
-- "ayudar", "ayuda", "necesito ayuda" → NO es escalamiento (es VENTAS o SOPORTE según contexto)
-- "hola", "buenos días" → NO es escalamiento (es VENTAS)
-- SOLO clasifica como ESCALAMIENTO si menciona:
-  * "hablar con una persona" / "necesito un humano" / "quiero un agente"
-  * "esto no sirve" / "no funciona nada" / "estoy muy frustrado"
-  * "quiero cancelar" / "dame mi dinero" / "esto es pésimo"
+DIAGNOSTICO: el cliente describe un problema específico de su empresa, menciona tareas manuales que consume tiempo, pide analizar su caso, quiere saber si Sensora puede ayudarle con su situación particular, solicita diagnóstico gratuito
 
-EJEMPLOS DE CLASIFICACIÓN:
+TECNICO: preguntas sobre stack tecnológico (qué lenguajes, qué herramientas), integraciones específicas (MercadoPago, WhatsApp API, Airtable), cómo funciona técnicamente la implementación, tiempos de desarrollo, arquitectura de sistemas
 
-"Hola, me pueden ayudar" → VENTAS (saludo general)
-"Necesito ayuda con mi compra" → SOPORTE (ayuda específica)
-"No me funciona el internet" → TECNICO (problema técnico)
-"Quiero hablar con una persona real" → ESCALAMIENTO (pide humano explícitamente)
-"Esto no sirve, dame un agente" → ESCALAMIENTO (frustración + pide agente)
-"¿Cuánto cuesta?" → VENTAS (pregunta de ventas)
-"Mi QR no llegó" → SOPORTE (problema post-compra)
-"No puedo instalar la eSIM" → TECNICO (problema técnico)
-"Hola buenos días" → VENTAS (saludo)
-"Tengo una duda" → VENTAS (pregunta general)
+ESCALAMIENTO: SOLO si el cliente pide EXPLÍCITAMENTE hablar con un humano/persona real, está muy frustrado, o solicita agendar llamada directa
 
-Responde ÚNICAMENTE con una palabra en MAYÚSCULAS: VENTAS, SOPORTE, TECNICO o ESCALAMIENTO
+REGLAS CRÍTICAS:
+- "ayudar", "ayuda", "necesito ayuda" → NO es escalamiento (es CONSULTA o DIAGNOSTICO según contexto)
+- "hola", "buenos días", "cómo estás" → CONSULTA (saludo general)
+- "tengo un problema con X" → DIAGNOSTICO (describe su caso)
+- "usan Node.js?" → TECNICO (pregunta técnica)
+- "quiero hablar con alguien" → ESCALAMIENTO (pide humano)
 
-Recuerda: ESCALAMIENTO es MUY RARO. La mayoría de mensajes son VENTAS, SOPORTE o TECNICO.`;
+EJEMPLOS:
+
+"Hola, qué es Sensora AI?" → CONSULTA
+"Cuánto cuesta automatizar mi CRM?" → CONSULTA
+"Mi equipo pierde 20 horas semanales en reportes manuales, pueden ayudar?" → DIAGNOSTICO
+"Tenemos un e-commerce y queremos automatizar WhatsApp" → DIAGNOSTICO
+"Quiero el diagnóstico gratuito" → DIAGNOSTICO
+"Qué tecnologías usan para automatizar?" → TECNICO
+"Se integran con MercadoPago?" → TECNICO
+"Necesito hablar con una persona" → ESCALAMIENTO
+"Quiero agendar una llamada" → ESCALAMIENTO
+"Hola buenos días" → CONSULTA
+
+Responde ÚNICAMENTE con una palabra en MAYÚSCULAS: CONSULTA, DIAGNOSTICO, TECNICO o ESCALAMIENTO
+
+Importante: La mayoría de mensajes son CONSULTA o DIAGNOSTICO. ESCALAMIENTO es muy raro.`;
   }
 }
 

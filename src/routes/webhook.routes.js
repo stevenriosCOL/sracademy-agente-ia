@@ -1,241 +1,306 @@
 const express = require('express');
 const router = express.Router();
+const rateLimitService = require('../services/ratelimit.service');
 const classifierService = require('../services/classifier.service');
 const agentsService = require('../services/agents.service');
-const manychatService = require('../services/manychat.service');
 const supabaseService = require('../services/supabase.service');
-const rateLimitService = require('../services/ratelimit.service');
-const Logger = require('../utils/logger.util');
+const manychatService = require('../services/manychat.service');
 const { detectLanguage } = require('../utils/language.util');
-const { sanitizeText } = require('../utils/sanitize.util');
+const { sanitizeInput } = require('../utils/sanitize.util');
+const Logger = require('../utils/logger.util');
 
 /**
- * POST /webhook/vuelasim-bot
- * Webhook principal para recibir mensajes de ManyChat
+ * Webhook principal de ManyChat para Sensora AI
  */
-router.post('/vuelasim-bot', async (req, res) => {
+router.post('/', async (req, res) => {
   const startTime = Date.now();
-  
+
   try {
-    Logger.info('🔵 Webhook recibido', { body: req.body });
+    // 1. Extraer datos de ManyChat
+    const { subscriber_id, first_name, last_input_text, phone } = req.body;
 
-    // 1. Extraer datos del body
-    const body = req.body || {};
-    let subscriberId = body.subscriber_id || body.key || 'unknown';
-    const mensaje = body.last_input_text || body.text || '';
-    const nombre = body.first_name || 'viajero';
-    const phone = body.phone || '';
-
-    // Limpiar subscriber_id
-    subscriberId = String(subscriberId).replace(/^user:/, '').trim();
-
-    Logger.info('📋 Datos extraídos', {
-      subscriberId,
-      nombre,
-      idioma: detectLanguage(mensaje),
-      mensajeLength: mensaje.length
-    });
-
-    // 2. Validar datos básicos
-    if (!subscriberId || !mensaje) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Faltan datos requeridos: subscriber_id y mensaje'
-      });
+    if (!subscriber_id || !last_input_text) {
+      Logger.warn('Request inválido - faltan campos', req.body);
+      return res.status(400).json({ error: 'subscriber_id y last_input_text son requeridos' });
     }
 
-    // 3. Rate limiting (30 mensajes por día)
-    const rateLimitResult = await rateLimitService.checkRateLimit(subscriberId);
+    const mensaje = sanitizeInput(last_input_text);
+    const nombre = first_name || 'Cliente';
+
+    Logger.info('📨 Mensaje recibido', { subscriber_id, nombre, mensaje });
+
+    // 2. DETECCIÓN DE CÓDIGOS ESPECIALES (ANTES del rate limit)
+    
+    // CÓDIGO DIAGNÓSTICO (SENS-XXXX)
+    const diagMatch = mensaje.match(/SENS-(\d{4})/i);
+    if (diagMatch) {
+      Logger.info('🎯 Código diagnóstico detectado:', diagMatch[0]);
+      const response = getPostDiagnosticoMessage(nombre);
+      
+      await supabaseService.saveAnalytics({
+        subscriber_id,
+        nombre_cliente: nombre,
+        categoria: 'POST_DIAGNOSTICO',
+        mensaje_cliente: mensaje,
+        respuesta_bot: response,
+        fue_escalado: false,
+        duracion_ms: Date.now() - startTime,
+        idioma: 'es'
+      });
+
+      return res.json({ response });
+    }
+
+    // CÓDIGO PAGO (P-XXXX)
+    const pagoMatch = mensaje.match(/P-([A-Z0-9]{5})/i);
+    if (pagoMatch) {
+      Logger.info('💳 Código de pago detectado:', pagoMatch[0]);
+      const response = getPostPagoMessage(nombre);
+      
+      // Notificar a admin
+      await manychatService.notifyAdmin({
+        subscriberId: subscriber_id,
+        nombre,
+        mensaje: `🎉 PAGO CONFIRMADO - Código: ${pagoMatch[0]}\nCliente listo para agendar sesión`,
+        timestamp: new Date().toISOString()
+      });
+
+      await supabaseService.saveAnalytics({
+        subscriber_id,
+        nombre_cliente: nombre,
+        categoria: 'POST_PAGO',
+        mensaje_cliente: mensaje,
+        respuesta_bot: response,
+        fue_escalado: true,
+        duracion_ms: Date.now() - startTime,
+        idioma: 'es'
+      });
+
+      return res.json({ response });
+    }
+
+    // DETECCIÓN DE INTENCIÓN DE PAGAR SESIÓN (keywords)
+    const wantsPaidSession = detectPaidSessionIntent(mensaje);
+    if (wantsPaidSession) {
+      Logger.info('💰 Cliente quiere sesión pagada - solicitando datos');
+      
+      const response = `Perfecto! Para generar tu link de pago personalizado necesito:
+
+📝 *Nombre completo:* (como aparecerá en el recibo)
+📱 *WhatsApp:* (para enviarte el código de sesión)
+
+¿Me confirmas esos dos datos?`;
+
+      await supabaseService.saveAnalytics({
+        subscriber_id,
+        nombre_cliente: nombre,
+        categoria: 'SOLICITUD_PAGO',
+        mensaje_cliente: mensaje,
+        respuesta_bot: response,
+        fue_escalado: false,
+        duracion_ms: Date.now() - startTime,
+        idioma: 'es'
+      });
+
+      return res.json({ response });
+    }
+
+    // DETECCIÓN DE DATOS PARA GENERAR LINK (nombre + teléfono en el mensaje)
+    const paymentData = extractPaymentData(mensaje, nombre, phone);
+    if (paymentData.hasData) {
+      Logger.info('💳 Generando link de pago', paymentData);
+      
+      const paymentResult = await manychatService.generatePaymentLink(
+        paymentData.nombre,
+        paymentData.whatsapp,
+        25
+      );
+
+      if (paymentResult.success) {
+        const response = `🧾 ¡Excelente! Aquí tienes tu enlace de pago personalizado:
+
+${paymentResult.link}
+
+🔖 *Código de sesión:* ${paymentResult.codigo}
+
+📌 Tu sesión se agenda después de completar el pago.
+🧠 Al pagar recibirás un código (P-XXXXX) por email. Envíamelo aquí para coordinar tu horario.
+
+💡 Tip: El pago de $25 USD se descuenta si decides trabajar con nosotros.`;
+
+        await supabaseService.saveAnalytics({
+          subscriber_id,
+          nombre_cliente: nombre,
+          categoria: 'LINK_PAGO_GENERADO',
+          mensaje_cliente: mensaje,
+          respuesta_bot: response,
+          fue_escalado: false,
+          duracion_ms: Date.now() - startTime,
+          idioma: 'es'
+        });
+
+        return res.json({ response });
+      } else {
+        const response = `Disculpa, hubo un error generando tu link de pago. Por favor escríbeme a steven@getsensora.com y te ayudo directamente.`;
+        return res.json({ response });
+      }
+    }
+
+    // 3. Rate limiting (solo para conversaciones normales)
+    const rateLimitResult = rateLimitService.checkLimit(subscriber_id);
     
     if (!rateLimitResult.allowed) {
-      Logger.warn('⚠️ Rate limit excedido', { subscriberId });
-      
-      // Enviar mensaje de rate limit
-      await manychatService.sendMessage(
-        subscriberId,
-        'Has alcanzado el límite de mensajes por hoy. Por favor intenta mañana o contacta a hola@vuelasim.com'
-      );
-      
-      return res.status(200).json({
-        status: 'rate_limited',
-        message: 'Rate limit excedido'
-      });
+      const limitMessage = `Has alcanzado el límite de ${rateLimitResult.limit} mensajes por día. Intenta mañana o escríbenos a steven@getsensora.com`;
+      Logger.warn('❌ Rate limit excedido', { subscriber_id });
+      return res.json({ response: limitMessage });
     }
-
-    Logger.info('✅ Rate limit OK: ' + rateLimitResult.count + '/' + rateLimitResult.limit);
 
     // 4. Detectar idioma
     const idioma = detectLanguage(mensaje);
-    Logger.info('🔍 Clasificando mensaje...', { length: mensaje.length, language: idioma });
+    Logger.info(`🌍 Idioma detectado: ${idioma}`);
 
     // 5. Clasificar mensaje
     const categoria = await classifierService.classify(mensaje, idioma);
-    Logger.info('🎯 Categoría: ' + categoria);
+    Logger.info(`📂 Categoría: ${categoria}`);
 
     // 6. Ejecutar agente correspondiente
     const respuesta = await agentsService.executeAgent(
       categoria,
-      subscriberId,
+      subscriber_id,
       nombre,
       mensaje,
       idioma
     );
 
-    // 7. Si es escalamiento, notificar admin
-    if (categoria === 'ESCALAMIENTO') {
+    // 7. Notificar admin si es escalamiento
+    const fueEscalado = categoria === 'ESCALAMIENTO';
+    if (fueEscalado) {
       await manychatService.notifyAdmin({
-        subscriberId,
+        subscriberId: subscriber_id,
         nombre,
         mensaje,
         timestamp: new Date().toISOString()
       });
     }
 
-    // 8. Enviar respuesta a ManyChat
-    const result = await manychatService.sendMessage(subscriberId, respuesta);
-    
-    if (!result.success) {
-      Logger.error('Error enviando respuesta a ManyChat', result);
-    }
-
-    // 9. Guardar analytics en Supabase (en background, no bloqueante)
-    supabaseService.saveAnalytics({
-      subscriber_id: subscriberId,
+    // 8. Guardar analytics
+    await supabaseService.saveAnalytics({
+      subscriber_id,
       nombre_cliente: nombre,
-      categoria: categoria,
-      mensaje_cliente: sanitizeText(mensaje),
-      respuesta_bot: sanitizeText(respuesta),
-      fue_escalado: categoria === 'ESCALAMIENTO',
-      duracion_ms: Date.now() - startTime,
-      idioma: idioma
-    }).catch(err => {
-      Logger.error('Error guardando analytics:', err);
-    });
-
-    // 10. Respuesta exitosa al webhook
-    Logger.info('✅ Webhook procesado exitosamente', {
-      subscriberId,
       categoria,
-      duracion: (Date.now() - startTime) + 'ms'
+      mensaje_cliente: mensaje,
+      respuesta_bot: respuesta,
+      fue_escalado: fueEscalado,
+      duracion_ms: Date.now() - startTime,
+      idioma
     });
 
-    // Retornar JSON compatible con ManyChat (evitar error de json path)
-    return res.status(200).json({
-      status: 'success',
-      categoria: categoria,
-      duracion_ms: Date.now() - startTime,
-      content: {
-        messages: [
-          {
-            text: "Mensaje procesado correctamente"
-          }
-        ]
-      }
+    // 9. Responder
+    Logger.info('✅ Respuesta generada', { 
+      subscriber_id, 
+      categoria, 
+      duracion: Date.now() - startTime 
     });
+
+    return res.json({ response: respuesta });
 
   } catch (error) {
-    Logger.error('Error en webhook:', error);
-    
-    return res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      content: {
-        messages: [
-          {
-            text: "Error procesando mensaje"
-          }
-        ]
-      }
+    Logger.error('❌ Error en webhook:', error);
+    return res.status(500).json({ 
+      response: 'Disculpa, tuve un problema técnico. Por favor escribe a steven@getsensora.com'
     });
   }
 });
 
 /**
- * POST /webhook/feedback
- * Webhook para recibir calificaciones de satisfacción de ManyChat
+ * Detecta si el mensaje indica intención de pagar sesión
  */
-router.post('/feedback', async (req, res) => {
-  try {
-    Logger.info('⭐ Feedback recibido', { body: req.body });
+function detectPaidSessionIntent(mensaje) {
+  const keywords = [
+    'quiero la sesión pagada',
+    'me interesa la de $25',
+    'prefiero la pagada',
+    'sí, quiero pagar',
+    'acepto la sesión de 25',
+    'quiero agendar pagando'
+  ];
 
-    // 1. Extraer datos del body
-    const body = req.body || {};
-    let subscriberId = body.subscriber_id || 'unknown';
-    const calificacion = body.calificacion || '';
-    const nombre = body.nombre || body.first_name || 'usuario';
+  const mensajeNorm = mensaje.toLowerCase();
+  return keywords.some(kw => mensajeNorm.includes(kw));
+}
 
-    // Limpiar subscriber_id
-    subscriberId = String(subscriberId).replace(/^user:/, '').trim();
+/**
+ * Extrae datos de pago del mensaje (nombre + teléfono)
+ */
+function extractPaymentData(mensaje, defaultNombre, defaultPhone) {
+  // Buscar patrón: Nombre: X, WhatsApp: Y
+  const pattern = /nombre[:\s]*([^\n,]+)[,\n]*whatsapp[:\s]*(\+?\d+)/i;
+  const match = mensaje.match(pattern);
 
-    // 2. Validar datos básicos
-    if (!subscriberId || !calificacion) {
-      Logger.warn('⚠️ Datos incompletos en feedback', { subscriberId, calificacion });
-      return res.status(400).json({
-        status: 'error',
-        message: 'Faltan datos requeridos: subscriber_id y calificacion'
-      });
-    }
-
-    // 3. Normalizar calificación a MINÚSCULA
-    const calificacionNormalizada = calificacion.toLowerCase().trim();
-
-    // 4. Validar que la calificación sea válida
-    const calificacionesValidas = ['excelente', 'buena', 'regular', 'mala'];
-    if (!calificacionesValidas.includes(calificacionNormalizada)) {
-      Logger.warn('⚠️ Calificación inválida', { calificacion: calificacionNormalizada });
-      return res.status(400).json({
-        status: 'error',
-        message: 'Calificación inválida. Debe ser: excelente, buena, regular o mala'
-      });
-    }
-
-    // 5. Buscar la última conversación para obtener la categoría
-    const lastConversation = await supabaseService.getLastConversation(subscriberId);
-
-    Logger.info('🔍 Última conversación', { 
-      subscriberId, 
-      categoria: lastConversation?.categoria || 'sin categoria' 
-    });
-
-    // 6. Guardar feedback en Supabase
-    const saved = await supabaseService.saveFeedback({
-      subscriber_id: subscriberId,
-      nombre_cliente: nombre,
-      calificacion: calificacionNormalizada,
-      categoria_conversacion: lastConversation?.categoria || null
-    });
-
-    if (saved) {
-      Logger.info('✅ Feedback guardado exitosamente', { 
-        subscriberId, 
-        calificacion: calificacionNormalizada 
-      });
-
-      return res.status(200).json({
-        status: 'success',
-        message: 'Feedback guardado correctamente',
-        data: {
-          subscriber_id: subscriberId,
-          calificacion: calificacionNormalizada,
-          categoria_conversacion: lastConversation?.categoria || null
-        }
-      });
-    } else {
-      Logger.error('❌ Error guardando feedback en Supabase');
-      return res.status(500).json({
-        status: 'error',
-        message: 'Error guardando feedback en base de datos'
-      });
-    }
-
-  } catch (error) {
-    Logger.error('❌ Error procesando feedback:', error);
-    
-    return res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor'
-    });
+  if (match) {
+    return {
+      hasData: true,
+      nombre: match[1].trim(),
+      whatsapp: match[2].trim()
+    };
   }
-});
+
+  // Si no encuentra el patrón pero hay un teléfono en el mensaje
+  const phonePattern = /(\+\d{10,15})/;
+  const phoneMatch = mensaje.match(phonePattern);
+  
+  if (phoneMatch && defaultNombre) {
+    return {
+      hasData: true,
+      nombre: defaultNombre,
+      whatsapp: phoneMatch[1]
+    };
+  }
+
+  return { hasData: false };
+}
+
+/**
+ * Mensaje después de completar diagnóstico (SENS-XXXX)
+ */
+function getPostDiagnosticoMessage(nombre) {
+  return `¡Gracias por completar el diagnóstico, ${nombre}! 🎉
+
+Revisé tu información y tu caso tiene potencial real de automatización.
+
+📞 *¿Te gustaría tener una sesión estratégica 1:1?*
+
+En 30-45 minutos analizamos:
+- Tu operación actual en detalle
+- 3-5 automatizaciones específicas para tu caso
+- Cotización exacta y timeline de implementación
+
+💰 Inversión: $25 USD (se descuentan si trabajamos juntos)
+
+¿Te interesa agendarla? Responde *"Sí, quiero la sesión pagada"* y te ayudo con el pago.`;
+}
+
+/**
+ * Mensaje después de confirmar pago (P-XXXX)
+ */
+function getPostPagoMessage(nombre) {
+  return `¡Pago confirmado, ${nombre}! ✅
+
+Tu sesión estratégica ya está lista para agendarse.
+
+📅 *Dime tu disponibilidad:*
+¿Qué día y hora te viene mejor? 
+
+Ejemplos: 
+- "Martes 10am"
+- "Jueves 3pm"
+- "Viernes en la mañana"
+
+⏰ Horarios disponibles: Lunes a Viernes, 9am - 6pm (GMT-5 Bogotá)
+
+Te confirmo en los próximos minutos y te envío el link de Google Meet. 
+
+¿Cuándo te gustaría tu sesión?`;
+}
 
 module.exports = router;

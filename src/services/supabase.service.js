@@ -4,10 +4,6 @@ const Logger = require('../utils/logger.util');
 
 class SupabaseService {
   constructor() {
-    if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Supabase credentials no configuradas');
-    }
-
     this.supabase = createClient(
       config.SUPABASE_URL,
       config.SUPABASE_SERVICE_ROLE_KEY,
@@ -18,37 +14,33 @@ class SupabaseService {
         }
       }
     );
-
-    Logger.info('✅ Supabase cliente inicializado');
   }
 
   /**
-   * Guarda analytics de conversación en bot_analytics
+   * Guardar conversación en analytics
    */
   async saveAnalytics(data) {
     try {
-      const analytics = {
-        subscriber_id: data.subscriber_id,
-        nombre_cliente: data.nombre_cliente,
-        categoria: data.categoria,
-        mensaje_cliente: data.mensaje_cliente,
-        respuesta_bot: data.respuesta_bot,
-        fue_escalado: data.fue_escalado || false,
-        duracion_ms: data.duracion_ms || 0,
-        idioma: data.idioma || 'es',
-        timestamp: new Date().toISOString()
-      };
-
       const { error } = await this.supabase
-        .from('bot_analytics')
-        .insert([analytics]);
+        .from('sensora_analytics')
+        .insert({
+          timestamp: new Date().toISOString(),
+          subscriber_id: data.subscriberId,
+          nombre_cliente: data.nombre,
+          categoria: data.categoria,
+          mensaje_cliente: data.mensaje,
+          respuesta_bot: data.respuesta,
+          fue_escalado: data.fueEscalado || false,
+          duracion_ms: data.duracionMs,
+          idioma: data.idioma
+        });
 
       if (error) {
         Logger.error('Error guardando analytics:', error);
         return false;
       }
 
-      Logger.info('✅ Analytics guardado', { subscriber_id: data.subscriber_id });
+      Logger.info('✅ Analytics guardado', { subscriberId: data.subscriberId });
       return true;
     } catch (error) {
       Logger.error('Error en saveAnalytics:', error);
@@ -57,7 +49,202 @@ class SupabaseService {
   }
 
   /**
-   * Guarda feedback de cliente
+   * Buscar en knowledge base (RAG)
+   */
+  async searchKnowledge(embedding, topK = 6) {
+    try {
+      const { data, error } = await this.supabase.rpc('match_sensora_knowledge', {
+        query_embedding: embedding,
+        match_threshold: 0.7,
+        match_count: topK
+      });
+
+      if (error) {
+        Logger.error('Error en searchKnowledge:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      Logger.error('Error en searchKnowledge:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Guardar mensaje en memoria conversacional
+   */
+  async saveMemory(sessionId, role, content) {
+    try {
+      const { error } = await this.supabase
+        .from('sensora_chat_memory')
+        .insert({
+          session_id: sessionId,
+          role: role,
+          content: content,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        Logger.error('Error guardando memoria:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      Logger.error('Error en saveMemory:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Obtener historial de memoria
+   */
+  async getMemory(sessionId, limit = 10) {
+    try {
+      const { data, error } = await this.supabase
+        .from('sensora_chat_memory')
+        .select('role, content, created_at')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        Logger.error('Error obteniendo memoria:', error);
+        return [];
+      }
+
+      // Retornar en orden cronológico (más antiguo primero)
+      return (data || []).reverse();
+    } catch (error) {
+      Logger.error('Error en getMemory:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Actualizar o crear lead scoring (uso general)
+   */
+  async upsertLeadScoring(data) {
+    try {
+      const { error } = await this.supabase
+        .from('sensora_lead_scoring')
+        .upsert({
+          subscriber_id: data.subscriberId,
+          first_name: data.firstName,
+          phone: data.phone,
+          score: data.score || 0,
+          company_size: data.companySize,
+          industry: data.industry,
+          country: data.country,
+          pain_points: data.painPoints || [],
+          budget_range: data.budgetRange,
+          qualified: data.qualified || false,
+          notes: data.notes,
+          last_interaction: new Date().toISOString()
+        }, {
+          onConflict: 'subscriber_id'
+        });
+
+      if (error) {
+        Logger.error('Error actualizando lead scoring:', error);
+        return false;
+      }
+
+      Logger.info('✅ Lead scoring actualizado', { subscriberId: data.subscriberId });
+      return true;
+    } catch (error) {
+      Logger.error('Error en upsertLeadScoring:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Obtener lead scoring de un usuario
+   */
+  async getLeadScoring(subscriberId) {
+    try {
+      const { data, error } = await this.supabase
+        .from('sensora_lead_scoring')
+        .select('*')
+        .eq('subscriber_id', subscriberId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no encontrado
+        Logger.error('Error obteniendo lead scoring:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      Logger.error('Error en getLeadScoring:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Limpiar memoria antigua (más de 7 días)
+   */
+  async cleanOldMemory() {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { error } = await this.supabase
+        .from('sensora_chat_memory')
+        .delete()
+        .lt('created_at', sevenDaysAgo.toISOString());
+
+      if (error) {
+        Logger.error('Error limpiando memoria antigua:', error);
+        return false;
+      }
+
+      Logger.info('✅ Memoria antigua limpiada');
+      return true;
+    } catch (error) {
+      Logger.error('Error en cleanOldMemory:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Actualizar lead scoring cuando califica en DIAGNOSTICO
+   * (versión compacta a partir de qualificationData)
+   */
+  async updateLeadQualification(subscriberId, qualificationData) {
+    try {
+      const leadData = {
+        subscriber_id: subscriberId,
+        first_name: qualificationData.nombre,
+        company_size: qualificationData.companySize,
+        industry: qualificationData.industry,
+        country: qualificationData.country,
+        pain_points: qualificationData.painPoints || [],
+        score: qualificationData.score || 50,
+        qualified: true,
+        last_interaction: new Date().toISOString()
+      };
+
+      const { error } = await this.supabase
+        .from('sensora_lead_scoring')
+        .upsert(leadData, { onConflict: 'subscriber_id' });
+
+      if (error) {
+        Logger.error('Error actualizando lead scoring (DIAGNOSTICO):', error);
+        return false;
+      }
+
+      Logger.info('✅ Lead calificado guardado desde DIAGNOSTICO', { subscriberId });
+      return true;
+    } catch (error) {
+      Logger.error('Error en updateLeadQualification:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Guardar feedback de cliente
    */
   async saveFeedback(data) {
     try {
@@ -67,11 +254,11 @@ class SupabaseService {
         calificacion: data.calificacion,
         categoria_conversacion: data.categoria_conversacion || null,
         comentario: data.comentario || null,
-        timestamp: new Date().toISOString()
+        created_at: new Date().toISOString()
       };
 
       const { error } = await this.supabase
-        .from('feedback_clientes')
+        .from('sensora_feedback')
         .insert([feedback]);
 
       if (error) {
@@ -88,20 +275,20 @@ class SupabaseService {
   }
 
   /**
-   * Busca la última conversación de un usuario (para feedback)
+   * Obtener última conversación de un usuario (para asociar feedback)
    */
   async getLastConversation(subscriberId) {
     try {
       const { data, error } = await this.supabase
-        .from('bot_analytics')
+        .from('sensora_analytics')
         .select('categoria, timestamp')
         .eq('subscriber_id', subscriberId)
         .order('timestamp', { ascending: false })
         .limit(1)
         .single();
 
-      if (error) {
-        Logger.warn('No se encontró conversación previa:', error.message);
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no encontrado
+        Logger.error('Error obteniendo última conversación:', error);
         return null;
       }
 
@@ -111,13 +298,7 @@ class SupabaseService {
       return null;
     }
   }
-
-  /**
-   * Obtiene el cliente de Supabase para operaciones avanzadas
-   */
-  getClient() {
-    return this.supabase;
-  }
 }
 
 module.exports = new SupabaseService();
+

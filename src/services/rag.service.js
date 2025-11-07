@@ -11,25 +11,24 @@ class RAGService {
   }
 
   /**
-   * Busca contexto relevante en la base de conocimiento
-   * Replica el comportamiento del RAG de n8n (topK=6)
+   * Busca contexto relevante en la base de conocimiento de Sensora AI
    */
   async searchKnowledge(query, topK = 6) {
     try {
-      Logger.debug('🔍 Buscando en knowledge base:', { query, topK });
+      Logger.debug('🔍 Buscando en knowledge base Sensora AI:', { query, topK });
 
       // 1. Generar embedding del query
       const embeddingResponse = await this.openai.embeddings.create({
-        model: 'text-embedding-ada-002',
+        model: 'text-embedding-3-small', // Modelo actualizado
         input: query,
       });
 
       const queryEmbedding = embeddingResponse.data[0].embedding;
 
-      // 2. Buscar documentos similares en Supabase usando similarity search
+      // 2. Buscar documentos similares en Supabase
       const supabase = supabaseService.getClient();
       
-      const { data, error } = await supabase.rpc('match_documents', {
+      const { data, error } = await supabase.rpc('match_sensora_knowledge', {
         query_embedding: queryEmbedding,
         match_threshold: 0.7,
         match_count: topK
@@ -64,14 +63,14 @@ class RAGService {
    */
   formatContextForAgent(context) {
     if (!context) {
-      return 'IMPORTANTE: No se encontró información específica en la base de conocimiento. Responde con tu conocimiento general de VuelaSim, pero indica que para información técnica detallada recomiendas contactar a hola@vuelasim.com';
+      return 'IMPORTANTE: No se encontró información específica en la base de conocimiento. Responde con conocimiento general de Sensora AI, pero para detalles técnicos específicos recomienda contactar a steven@getsensora.com';
     }
 
-    return `BASE DE CONOCIMIENTO OFICIAL DE VUELASIM:
+    return `BASE DE CONOCIMIENTO OFICIAL DE SENSORA AI:
     
 ${context}
 
-IMPORTANTE: Esta es la información OFICIAL y VERIFICADA. Úsala como tu fuente principal de verdad. Si el cliente pregunta algo que está aquí, responde basándote en esta información.`;
+IMPORTANTE: Esta es la información OFICIAL y VERIFICADA. Úsala como tu fuente principal. Si el cliente pregunta algo que está aquí, responde basándote en esta información.`;
   }
 }
 
