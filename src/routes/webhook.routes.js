@@ -151,14 +151,15 @@ ${linkPago}
 
 💡 El pago de $25 USD se descuenta si decides trabajar con nosotros.`;
 
+        // ✅ Usar las claves correctas que espera saveAnalytics
         await supabaseService.saveAnalytics({
-          subscriberId: subscriber_id,
-          nombre: nombre,
+          subscriber_id,                // <-- ahora con guion bajo
+          nombre_cliente: nombre,
           categoria: 'LINK_PAGO_GENERADO',
-          mensaje: mensaje,
-          respuesta: response,
-          fueEscalado: false,
-          duracionMs: Date.now() - startTime,
+          mensaje_cliente: mensaje,
+          respuesta_bot: response,
+          fue_escalado: false,
+          duracion_ms: Date.now() - startTime,
           idioma: 'es'
         });
 
@@ -170,14 +171,15 @@ ${linkPago}
       } else {
         const response = `Disculpa, hubo un error generando tu link de pago. Por favor escríbeme a info@getsensora.com y te ayudo directamente.`;
 
+        // ✅ Igual aquí: nombres de campos correctos
         await supabaseService.saveAnalytics({
-          subscriberId: subscriber_id,
-          nombre: nombre,
+          subscriber_id,
+          nombre_cliente: nombre,
           categoria: 'ERROR_PAGO',
-          mensaje: mensaje,
-          respuesta: response,
-          fueEscalado: true,
-          duracionMs: Date.now() - startTime,
+          mensaje_cliente: mensaje,
+          respuesta_bot: response,
+          fue_escalado: true,
+          duracion_ms: Date.now() - startTime,
           idioma: 'es'
         });
 
@@ -187,6 +189,7 @@ ${linkPago}
           codigo_sesion: null
         });
       }
+
     }
 
 
