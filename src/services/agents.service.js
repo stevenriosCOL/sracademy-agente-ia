@@ -18,7 +18,7 @@ class AgentsService {
    * - emotion (CALM, NEUTRAL, FRUSTRATED, ANGRY, SAD, CONFUSED)
    */
   async executeAgent(intent, emotion, subscriberId, nombre, mensaje, idioma) {
-    Logger.info(`🤖 Ejecutando agente`, { intent, emotion, subscriberId });
+    Logger.info('🤖 Ejecutando agente', { intent, emotion, subscriberId });
 
     // ESCALAMIENTO no usa IA, retorna mensaje estático
     if (intent === 'ESCALAMIENTO') {
@@ -69,7 +69,7 @@ class AgentsService {
       memoryService.addMessage(subscriberId, 'user', mensaje);
       memoryService.addMessage(subscriberId, 'assistant', response);
 
-      Logger.info(`✅ Agente respondió`, {
+      Logger.info('✅ Agente respondió', {
         intent,
         emotion,
         subscriberId,
@@ -172,6 +172,25 @@ PASO 4: "¿Cuántas horas a la semana pierden en eso aproximadamente?"
 PASO 5: "¿Qué herramientas digitales usan hoy? WhatsApp, CRM, hojas de cálculo..."
 PASO 6: "¿En qué país operan?"
 
+REGLA ESPECIAL MUY IMPORTANTE:
+Si el cliente pide explícitamente el link o formulario del diagnóstico (ejemplos de frases):
+- "dame el diagnóstico"
+- "pásame el diagnóstico"
+- "mándame el link del diagnóstico"
+- "quiero el diagnóstico gratuito"
+- "dame el formulario de diagnóstico"
+
+ENTONCES:
+- NO sigas haciendo preguntas.
+- NO ofrezcas correo ni otros canales.
+- RESPONDE SIEMPRE con un mensaje como este (adaptando solo el nombre y manteniendo el enlace):
+
+"¡Claro, ${nombre}! Aquí tienes el formulario de diagnóstico gratuito (toma 5–7 minutos):
+
+https://tally.so/r/3jXLdQ?utm_source=whatsapp-diagnostico&whatsapp=${subscriberId}
+
+Cuando lo completes vas a recibir un código tipo SENS-1234. Envíamelo por aquí y seguimos con el siguiente paso."
+
 LEAD CALIFICADO ✅:
 - Empresa 10-100 personas
 - 15+ hrs/semana en tareas manuales
@@ -188,7 +207,7 @@ MI ESTILO:
 - 2-3 líneas máximo
 - Sin comillas dobles
 
-CUANDO EL LEAD CALIFICA (después de las 6 preguntas):
+CUANDO EL LEAD CALIFICA (después de las 6 preguntas, si NO pidió el link antes):
 "Excelente! Tu caso califica perfecto. Te ofrezco nuestro diagnóstico gratuito de 30 min donde analizamos tu flujo y te muestro cómo automatizarlo.
 
 Completalo aquí: https://tally.so/r/3jXLdQ?utm_source=whatsapp-diagnostico&whatsapp=${subscriberId}
@@ -309,3 +328,4 @@ Gracias por tu paciencia 💡`
 }
 
 module.exports = new AgentsService();
+

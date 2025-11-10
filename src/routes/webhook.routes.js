@@ -56,6 +56,31 @@ router.post('/', async (req, res) => {
       return res.json({ response });
     }
 
+        // SOLICITUD DIRECTA DE DIAGNÓSTICO (link/formulario)
+    if (detectDiagnosticIntent(mensaje)) {
+      Logger.info('🧠 Cliente pide link de diagnóstico directamente', { subscriber_id, mensaje });
+
+      const response = `¡Claro, ${nombre}! Aquí tienes el formulario de diagnóstico gratuito (toma 5–7 minutos):
+
+https://tally.so/r/3jXLdQ?utm_source=whatsapp-diagnostico&whatsapp=${subscriber_id}
+
+Cuando lo completes vas a recibir un código tipo SENS-1234. Envíamelo por aquí y seguimos con el siguiente paso.`;
+
+      await supabaseService.saveAnalytics({
+        subscriber_id,
+        nombre_cliente: nombre,
+        categoria: 'LINK_DIAGNOSTICO',
+        mensaje_cliente: mensaje,
+        respuesta_bot: response,
+        fue_escalado: false,
+        duracion_ms: Date.now() - startTime,
+        idioma: 'es' // si luego detectas idioma aquí, puedes usar la variable `idioma`
+      });
+
+      return res.json({ response });
+    }
+
+
     // CÓDIGO PAGO (P-XXXX)
     const pagoMatch = mensaje.match(/P-([A-Z0-9]{5})/i);
     if (pagoMatch) {
@@ -274,6 +299,39 @@ function detectPaidSessionIntent(mensaje) {
   const mensajeNorm = mensaje.toLowerCase();
   return keywords.some(kw => mensajeNorm.includes(kw));
 }
+
+/**
+ * Detecta si el mensaje indica que el usuario quiere el diagnóstico gratuito
+ * (link / formulario)
+ */
+function detectDiagnosticIntent(mensaje) {
+  const keywords = [
+    'link del diagnóstico',
+    'link del diagnostico',
+    'dame el diagnóstico',
+    'dame el diagnostico',
+    'pásame el diagnóstico',
+    'pasame el diagnostico',
+    'mándame el diagnóstico',
+    'mandame el diagnostico',
+    'quiero el diagnóstico',
+    'quiero el diagnostico',
+    'quiero hacer el diagnóstico',
+    'quiero hacer el diagnostico',
+    'formulario de diagnóstico',
+    'formulario de diagnostico',
+    'hazme el diagnóstico',
+    'hazme el diagnostico',
+    'enviame el diagnóstico',
+    'envíame el diagnóstico',
+    'enviame el diagnostico',
+    'envíame el diagnostico'
+  ];
+
+  const mensajeNorm = mensaje.toLowerCase();
+  return keywords.some(kw => mensajeNorm.includes(kw));
+}
+
 
 /**
  * Extrae datos de pago del mensaje (nombre + teléfono)
