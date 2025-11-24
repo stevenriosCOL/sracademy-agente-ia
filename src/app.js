@@ -4,7 +4,6 @@ const cors = require('cors');
 const morgan = require('morgan');
 const webhookRoutes = require('./routes/webhook.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
-const paymentRoutes = require('./routes/payment.routes');
 const Logger = require('./utils/logger.util');
 
 const app = express();
@@ -37,6 +36,7 @@ if (process.env.NODE_ENV === 'development') {
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
+    service: 'SR Academy - Agente IA',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development'
@@ -45,14 +45,14 @@ app.get('/health', (req, res) => {
 
 app.get('/', (req, res) => {
   res.status(200).json({
-    message: '🤖 Sensora AI - Super Agente API',
+    message: '🎓 SR Academy - Agente IA API',
     version: '1.0.0',
     status: 'running',
+    author: 'Steven Rios FX',
     endpoints: {
       health: 'GET /health',
-      webhook: 'POST /webhook',
-      feedback: 'POST /webhook/feedback-sensora',
-      payment: 'POST /payment/generate-link'
+      webhook: 'POST /webhook/sracademy-bot',
+      feedback: 'POST /webhook/feedback-sracademy'
     }
   });
 });
@@ -63,7 +63,6 @@ app.get('/', (req, res) => {
 
 app.use('/webhook', webhookRoutes);
 app.use('/webhook', feedbackRoutes);
-app.use('/payment', paymentRoutes);
 
 // =====================
 // MANEJO DE ERRORES 404

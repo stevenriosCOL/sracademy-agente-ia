@@ -6,16 +6,23 @@ const agentsService = require('../services/agents.service');
 const supabaseService = require('../services/supabase.service');
 const manychatService = require('../services/manychat.service');
 const { detectLanguage } = require('../utils/language.util');
-// Función simple de sanitización inline
+const Logger = require('../utils/logger.util');
+
+// Links de SR Academy
+const LINKS = {
+  CURSO_GRATUITO: 'https://www.youtube.com/playlist?list=PLtik6WwJuNioT_cIRjR9kEfpjA62wNntK',
+  MEMBRESIA: 'https://stevenriosfx.com/ofertadela%C3%B1o',
+  WHATSAPP: '+573142735697'
+};
+
+// Función de sanitización
 const sanitizeInput = (text) => {
   if (!text) return '';
-  return String(text).trim().slice(0, 1000); // Max 1000 chars
+  return String(text).trim().slice(0, 1000);
 };
-const Logger = require('../utils/logger.util');
-const mercadopagoService = require('../services/mercadopago.service');
 
 /**
- * Webhook principal de ManyChat para Sensora AI
+ * Webhook principal de ManyChat para SR Academy
  */
 router.post('/', async (req, res) => {
   const startTime = Date.now();
@@ -30,242 +37,181 @@ router.post('/', async (req, res) => {
     }
 
     const mensaje = sanitizeInput(last_input_text);
-    const nombre = first_name || 'Cliente';
+    const nombre = first_name || 'Trader';
 
-    Logger.info('📨 Mensaje recibido', { subscriber_id, nombre, mensaje });
+    Logger.info('📨 [SR Academy] Mensaje recibido', { subscriber_id, nombre, mensaje });
 
-    // 2. DETECCIÓN DE CÓDIGOS ESPECIALES (ANTES del rate limit)
-    
-    // CÓDIGO DIAGNÓSTICO (SENS-XXXX)
-    const diagMatch = mensaje.match(/SENS-(\d{4})/i);
-    if (diagMatch) {
-      Logger.info('🎯 Código diagnóstico detectado:', diagMatch[0]);
-      const response = getPostDiagnosticoMessage(nombre);
+    // ═══════════════════════════════════════
+    // 2. DETECCIÓN DE PALABRAS CLAVE ESPECIALES
+    // ═══════════════════════════════════════
+
+    // LISTO - Completó el curso gratuito
+    if (detectCursoCompletado(mensaje)) {
+      Logger.info('🎓 Usuario completó curso gratuito', { subscriber_id });
       
-      await supabaseService.saveAnalytics({
-        subscriber_id,
-        nombre_cliente: nombre,
-        categoria: 'POST_DIAGNOSTICO',
-        mensaje_cliente: mensaje,
-        respuesta_bot: response,
-        fue_escalado: false,
-        duracion_ms: Date.now() - startTime,
-        idioma: 'es'
-      });
-
-      return res.json({ response });
-    }
-
-        // SOLICITUD DIRECTA DE DIAGNÓSTICO (link/formulario)
-    if (detectDiagnosticIntent(mensaje)) {
-      Logger.info('🧠 Cliente pide link de diagnóstico directamente', { subscriber_id, mensaje });
-
-      const response = `¡Claro, ${nombre}! Aquí tienes el formulario de diagnóstico gratuito (toma 5–7 minutos):
-
-https://tally.so/r/3jXLdQ?utm_source=whatsapp-diagnostico&whatsapp=${subscriber_id}
-
-Cuando lo completes vas a recibir un código tipo SENS-1234. Envíamelo por aquí y seguimos con el siguiente paso.`;
-
-      await supabaseService.saveAnalytics({
-        subscriber_id,
-        nombre_cliente: nombre,
-        categoria: 'LINK_DIAGNOSTICO',
-        mensaje_cliente: mensaje,
-        respuesta_bot: response,
-        fue_escalado: false,
-        duracion_ms: Date.now() - startTime,
-        idioma: 'es' // si luego detectas idioma aquí, puedes usar la variable `idioma`
-      });
-
-      return res.json({ response });
-    }
-
-
-    // CÓDIGO PAGO (P-XXXX)
-    const pagoMatch = mensaje.match(/P-([A-Z0-9]{5})/i);
-    if (pagoMatch) {
-      Logger.info('💳 Código de pago detectado:', pagoMatch[0]);
-      const response = getPostPagoMessage(nombre);
+      const response = getCursoCompletadoMessage(nombre);
       
-      // Notificar a admin
-      await manychatService.notifyAdmin({
-        subscriberId: subscriber_id,
-        nombre,
-        mensaje: `🎉 PAGO CONFIRMADO - Código: ${pagoMatch[0]}\nCliente listo para agendar sesión`,
-        timestamp: new Date().toISOString()
+      // Actualizar lead en Supabase
+      await updateLeadStatus(subscriber_id, nombre, phone, {
+        curso_gratuito_completado: true
       });
 
-      await supabaseService.saveAnalytics({
-        subscriber_id,
-        nombre_cliente: nombre,
-        categoria: 'POST_PAGO',
-        mensaje_cliente: mensaje,
-        respuesta_bot: response,
-        fue_escalado: true,
-        duracion_ms: Date.now() - startTime,
-        idioma: 'es'
-      });
+      await saveAnalytics(subscriber_id, nombre, 'CURSO_COMPLETADO', mensaje, response, false, startTime);
 
       return res.json({ response });
     }
 
-    // DETECCIÓN DE INTENCIÓN DE PAGAR SESIÓN (keywords)
-    const wantsPaidSession = detectPaidSessionIntent(mensaje);
-    if (wantsPaidSession) {
-      Logger.info('💰 Cliente quiere sesión pagada - solicitando datos');
+    // CURSO GRATUITO - Pide el link del curso
+    if (detectCursoGratuitoIntent(mensaje)) {
+      Logger.info('📚 Usuario pide curso gratuito', { subscriber_id });
       
-      const response = `Perfecto! Para generar tu link de pago personalizado necesito:
-
-📝 *Nombre completo:* (como aparecerá en el recibo)
-📱 *WhatsApp:* (para enviarte el código de sesión)
-
-¿Me confirmas esos dos datos?`;
-
-      await supabaseService.saveAnalytics({
-        subscriber_id,
-        nombre_cliente: nombre,
-        categoria: 'SOLICITUD_PAGO',
-        mensaje_cliente: mensaje,
-        respuesta_bot: response,
-        fue_escalado: false,
-        duracion_ms: Date.now() - startTime,
-        idioma: 'es'
+      const response = getCursoGratuitoMessage(nombre, subscriber_id);
+      
+      // Actualizar lead
+      await updateLeadStatus(subscriber_id, nombre, phone, {
+        curso_gratuito_enviado: true
       });
+
+      await saveAnalytics(subscriber_id, nombre, 'CURSO_GRATUITO_ENVIADO', mensaje, response, false, startTime);
 
       return res.json({ response });
     }
 
-    // DETECCIÓN DE DATOS PARA GENERAR LINK (nombre + teléfono en el mensaje)
-    const paymentData = extractPaymentData(mensaje, nombre, phone);
-    if (paymentData.hasData) {
-      Logger.info('💳 Generando link de pago (nuevo flujo MP + Supabase)', paymentData);
+    // MEMBRESÍA - Pide info de membresía directamente
+    if (detectMembresiaIntent(mensaje)) {
+      Logger.info('💰 Usuario pregunta por membresía', { subscriber_id });
+      
+      const response = getMembresiaMessage(nombre);
+      
+      await updateLeadStatus(subscriber_id, nombre, phone, {
+        interesado_membresia: true
+      });
 
-      // 1) Generar código de sesión
-      const codigoSesion = mercadopagoService.generateSessionCode();
+      await saveAnalytics(subscriber_id, nombre, 'INFO_MEMBRESIA', mensaje, response, false, startTime);
 
-      // 2) Crear link de pago en Mercado Pago
-      const mpResult = await mercadopagoService.createPaymentLink(25, codigoSesion, paymentData.nombre);
-
-      if (mpResult.success) {
-        const linkPago = mpResult.link_pago;
-
-        // 3) Guardar en Supabase
-        await supabaseService.savePayment({
-          subscriberId: subscriber_id,
-          nombreCliente: paymentData.nombre,
-          whatsapp: paymentData.whatsapp,
-          monto: 25,
-          codigoSesion,
-          linkPago,
-          estadoPago: 'pending',
-          metadata: {
-            source: 'manychat_webhook',
-            raw_message: mensaje
-          }
-        });
-
-        // 4) Mensaje para el usuario
-        const response = `🧾 ¡Excelente, ${nombre}! Aquí tienes tu enlace de pago personalizado:
-
-${linkPago}
-
-🔖 *Código de sesión:* ${codigoSesion}
-
-📌 Tu sesión se agenda después de completar el pago.
-🧠 Cuando tu pago esté aprobado, recibirás un código (P-XXXXX) y podremos coordinar tu horario.
-
-💡 El pago de $25 USD se descuenta si decides trabajar con nosotros.`;
-
-        await supabaseService.saveAnalytics({
-          subscriber_id,
-          nombre_cliente: nombre,
-          categoria: 'LINK_PAGO_GENERADO',
-          mensaje_cliente: mensaje,
-          respuesta_bot: response,
-          fue_escalado: false,
-          duracion_ms: Date.now() - startTime,
-          idioma: 'es'
-        });
-
-        return res.json({
-          response,
-          link_pago: linkPago,
-          codigo_sesion: codigoSesion
-        });
-      } else {
-        const response = `Disculpa, hubo un error generando tu link de pago. Por favor escríbeme a info@getsensora.com y te ayudo directamente.`;
-
-        await supabaseService.saveAnalytics({
-          subscriber_id,
-          nombre_cliente: nombre,
-          categoria: 'ERROR_PAGO',
-          mensaje_cliente: mensaje,
-          respuesta_bot: response,
-          fue_escalado: true,
-          duracion_ms: Date.now() - startTime,
-          idioma: 'es'
-        });
-
-        return res.json({
-          response,
-          link_pago: null,
-          codigo_sesion: null
-        });
-      }
+      return res.json({ response });
     }
 
-    // 3. Rate limiting (solo para conversaciones normales)
+    // QUIERO PAGAR - Lead caliente
+    if (detectQuierePagar(mensaje)) {
+      Logger.info('🔥 LEAD CALIENTE - Quiere pagar', { subscriber_id, nombre });
+      
+      const response = getQuierePagarMessage(nombre);
+      
+      // Notificar a Steven (lead caliente)
+      await notifyAdmin(subscriber_id, nombre, mensaje, 'LEAD_CALIENTE');
+      
+      await updateLeadStatus(subscriber_id, nombre, phone, {
+        interesado_membresia: true,
+        qualified: true
+      });
+
+      await saveAnalytics(subscriber_id, nombre, 'LEAD_CALIENTE', mensaje, response, true, startTime);
+
+      return res.json({ response });
+    }
+
+    // HABLAR CON STEVEN - Escalamiento directo
+    if (detectEscalamientoDirecto(mensaje)) {
+      Logger.info('👤 Usuario pide hablar con Steven', { subscriber_id });
+      
+      const response = getEscalamientoMessage(nombre);
+      
+      await notifyAdmin(subscriber_id, nombre, mensaje, 'ESCALAMIENTO');
+
+      await saveAnalytics(subscriber_id, nombre, 'ESCALAMIENTO', mensaje, response, true, startTime);
+
+      return res.json({ response });
+    }
+
+    // SITUACIÓN DELICADA - Pérdida, desesperación
+    if (detectSituacionDelicada(mensaje)) {
+      Logger.info('⚠️ SITUACIÓN DELICADA detectada', { subscriber_id, nombre });
+      
+      const response = getSituacionDelicadaMessage(nombre);
+      
+      // Notificar a Steven siempre en casos delicados
+      await notifyAdmin(subscriber_id, nombre, mensaje, 'SITUACION_DELICADA');
+
+      await saveAnalytics(subscriber_id, nombre, 'SITUACION_DELICADA', mensaje, response, true, startTime);
+
+      return res.json({ response });
+    }
+
+    // ═══════════════════════════════════════
+    // 3. RATE LIMITING
+    // ═══════════════════════════════════════
     const rateLimitResult = await rateLimitService.checkRateLimit(subscriber_id);
     
     if (!rateLimitResult.allowed) {
-      const limitMessage = `Has alcanzado el límite de ${rateLimitResult.limit} mensajes por día. Intenta mañana o escríbenos a info@getsensora.com`;
+      const limitMessage = `Has alcanzado el límite de mensajes por hoy. Intenta mañana o escríbenos al WhatsApp: ${LINKS.WHATSAPP}`;
       Logger.warn('❌ Rate limit excedido', { subscriber_id });
       return res.json({ response: limitMessage });
     }
 
-    // 4. Detectar idioma
+    // ═══════════════════════════════════════
+    // 4. CLASIFICACIÓN IA
+    // ═══════════════════════════════════════
     const idioma = detectLanguage(mensaje);
     Logger.info(`🌍 Idioma detectado: ${idioma}`);
 
-    // 5. Clasificar mensaje (INTENT + EMOTION)
-    const { intent, emotion } = await classifierService.classify(mensaje, idioma);
-    Logger.info(`📂 Clasificación`, { intent, emotion });
+    const { intent, emotion, nivel, urgencia } = await classifierService.classify(mensaje, idioma);
+    Logger.info(`📂 Clasificación SR Academy`, { intent, emotion, nivel, urgencia });
 
-    // 6. Ejecutar agente correspondiente
+    // ═══════════════════════════════════════
+    // 5. EJECUTAR AGENTE
+    // ═══════════════════════════════════════
     const respuesta = await agentsService.executeAgent(
       intent,
       emotion,
       subscriber_id,
       nombre,
       mensaje,
-      idioma
+      idioma,
+      nivel
     );
 
-    // 7. Notificar admin si es escalamiento REAL
-    const fueEscalado = intent === 'ESCALAMIENTO';
-    if (fueEscalado) {
-      await manychatService.notifyAdmin({
-        subscriberId: subscriber_id,
-        nombre,
-        mensaje,
-        timestamp: new Date().toISOString()
-      });
+    // ═══════════════════════════════════════
+    // 6. NOTIFICACIONES SEGÚN CASO
+    // ═══════════════════════════════════════
+    const fueEscalado = intent === 'ESCALAMIENTO' || intent === 'SITUACION_DELICADA';
+    const esLeadCaliente = intent === 'LEAD_CALIENTE' || urgencia === 'alta';
+
+    if (fueEscalado || esLeadCaliente) {
+      const tipo = esLeadCaliente ? 'LEAD_CALIENTE' : intent;
+      await notifyAdmin(subscriber_id, nombre, mensaje, tipo);
     }
 
-    // 8. Guardar analytics (usamos intent como categoria)
-    await supabaseService.saveAnalytics({
-      subscriber_id,
-      nombre_cliente: nombre,
-      categoria: intent,
-      mensaje_cliente: mensaje,
-      respuesta_bot: respuesta,
-      fue_escalado: fueEscalado,
-      duracion_ms: Date.now() - startTime,
-      idioma
-    });
+    // ═══════════════════════════════════════
+    // 7. ACTUALIZAR LEAD EN SUPABASE
+    // ═══════════════════════════════════════
+    const leadUpdates = {
+      nivel: nivel
+    };
 
-    // 9. Responder
-    Logger.info('✅ Respuesta generada', { 
+    if (intent === 'APRENDER_CERO') {
+      leadUpdates.nivel = 'cero';
+      leadUpdates.curso_gratuito_enviado = true;
+    } else if (intent === 'MEJORAR') {
+      leadUpdates.nivel = 'intermedio';
+    } else if (intent === 'INFO_PRODUCTOS') {
+      leadUpdates.interesado_membresia = true;
+    } else if (intent === 'LEAD_CALIENTE') {
+      leadUpdates.interesado_membresia = true;
+      leadUpdates.qualified = true;
+    }
+
+    await updateLeadStatus(subscriber_id, nombre, phone, leadUpdates);
+
+    // ═══════════════════════════════════════
+    // 8. GUARDAR ANALYTICS
+    // ═══════════════════════════════════════
+    await saveAnalytics(subscriber_id, nombre, intent, mensaje, respuesta, fueEscalado, startTime, idioma, emotion);
+
+    // ═══════════════════════════════════════
+    // 9. RESPONDER
+    // ═══════════════════════════════════════
+    Logger.info('✅ [SR Academy] Respuesta generada', { 
       subscriber_id, 
       intent, 
       emotion,
@@ -275,136 +221,305 @@ ${linkPago}
     return res.json({ response: respuesta });
 
   } catch (error) {
-    Logger.error('❌ Error en webhook:', error);
+    Logger.error('❌ Error en webhook SR Academy:', error);
     return res.status(500).json({ 
-      response: 'Disculpa, tuve un problema técnico. Por favor escribe a info@getsensora.com'
+      response: `Disculpa, tuve un problema técnico. Escríbenos al WhatsApp: ${LINKS.WHATSAPP}`
     });
   }
 });
 
-/**
- * Detecta si el mensaje indica intención de pagar sesión
- */
-function detectPaidSessionIntent(mensaje) {
+// ═══════════════════════════════════════
+// FUNCIONES DE DETECCIÓN
+// ═══════════════════════════════════════
+
+function detectCursoCompletado(mensaje) {
   const keywords = [
-    'quiero la sesión pagada',
-    'me interesa la de $25',
-    'prefiero la pagada',
-    'sí, quiero pagar',
-    'si, quiero pagar',
-    'acepto la sesión de 25',
-    'quiero agendar pagando'
+    'listo',
+    'ya terminé',
+    'ya termine',
+    'terminé el curso',
+    'termine el curso',
+    'vi todo el curso',
+    'completé el curso',
+    'complete el curso',
+    'ya lo vi todo',
+    'ya vi las 12 horas'
   ];
-
-  const mensajeNorm = mensaje.toLowerCase();
-  return keywords.some(kw => mensajeNorm.includes(kw));
+  const m = mensaje.toLowerCase();
+  return keywords.some(kw => m.includes(kw));
 }
 
-/**
- * Detecta si el mensaje indica que el usuario quiere el diagnóstico gratuito
- * (link / formulario)
- */
-function detectDiagnosticIntent(mensaje) {
+function detectCursoGratuitoIntent(mensaje) {
   const keywords = [
-    'link del diagnóstico',
-    'link del diagnostico',
-    'dame el diagnóstico',
-    'dame el diagnostico',
-    'pásame el diagnóstico',
-    'pasame el diagnostico',
-    'mándame el diagnóstico',
-    'mandame el diagnostico',
-    'quiero el diagnóstico',
-    'quiero el diagnostico',
-    'quiero hacer el diagnóstico',
-    'quiero hacer el diagnostico',
-    'formulario de diagnóstico',
-    'formulario de diagnostico',
-    'hazme el diagnóstico',
-    'hazme el diagnostico',
-    'enviame el diagnóstico',
-    'envíame el diagnóstico',
-    'enviame el diagnostico',
-    'envíame el diagnostico'
+    'curso gratis',
+    'curso gratuito',
+    'quiero el curso',
+    'dame el curso',
+    'link del curso',
+    'quiero aprender',
+    'cómo empiezo',
+    'como empiezo',
+    'soy nuevo',
+    'empezar desde cero',
+    'no sé nada',
+    'no se nada'
   ];
-
-  const mensajeNorm = mensaje.toLowerCase();
-  return keywords.some(kw => mensajeNorm.includes(kw));
+  const m = mensaje.toLowerCase();
+  return keywords.some(kw => m.includes(kw));
 }
 
+function detectMembresiaIntent(mensaje) {
+  const keywords = [
+    'membresía',
+    'membresia',
+    'cuánto cuesta',
+    'cuanto cuesta',
+    'precio',
+    'precios',
+    'qué incluye',
+    'que incluye',
+    'platino',
+    '$6',
+    '6.99',
+    '6 dólares',
+    '6 dolares'
+  ];
+  const m = mensaje.toLowerCase();
+  return keywords.some(kw => m.includes(kw));
+}
 
-/**
- * Extrae datos de pago del mensaje (nombre + teléfono)
- */
-function extractPaymentData(mensaje, defaultNombre, defaultPhone) {
-  // Buscar patrón: Nombre: X, WhatsApp: Y
-  const pattern = /nombre[:\s]*([^\n,]+)[,\n]*whatsapp[:\s]*(\+?\d+)/i;
-  const match = mensaje.match(pattern);
+function detectQuierePagar(mensaje) {
+  const keywords = [
+    'quiero pagar',
+    'cómo pago',
+    'como pago',
+    'dónde pago',
+    'donde pago',
+    'quiero comprar',
+    'lo compro',
+    'me interesa comprar',
+    'quiero la membresía',
+    'quiero la membresia',
+    'tomar la membresía',
+    'adquirir'
+  ];
+  const m = mensaje.toLowerCase();
+  return keywords.some(kw => m.includes(kw));
+}
 
-  if (match) {
-    return {
-      hasData: true,
-      nombre: match[1].trim(),
-      whatsapp: match[2].trim()
+function detectEscalamientoDirecto(mensaje) {
+  const keywords = [
+    'hablar con steven',
+    'contactar a steven',
+    'quiero hablar con alguien',
+    'hablar con un humano',
+    'hablar con una persona',
+    'necesito hablar con steven'
+  ];
+  const m = mensaje.toLowerCase();
+  return keywords.some(kw => m.includes(kw));
+}
+
+function detectSituacionDelicada(mensaje) {
+  const keywords = [
+    'perdí todo',
+    'perdi todo',
+    'quemé mi cuenta',
+    'queme mi cuenta',
+    'estoy desesperado',
+    'no sé qué hacer',
+    'no se que hacer',
+    'perdí mucho dinero',
+    'perdi mucho dinero',
+    'me arruiné',
+    'me arruine',
+    'deuda por trading',
+    'préstamo para trading',
+    'prestamo para trading'
+  ];
+  const m = mensaje.toLowerCase();
+  return keywords.some(kw => m.includes(kw));
+}
+
+// ═══════════════════════════════════════
+// MENSAJES PREDEFINIDOS
+// ═══════════════════════════════════════
+
+function getCursoGratuitoMessage(nombre, subscriberId) {
+  return `¡Hola ${nombre}! 👋
+
+Aquí tienes el curso gratuito de 12 horas. Es el mejor punto de partida para aprender trading desde cero:
+
+📚 ${LINKS.CURSO_GRATUITO}
+
+Te recomiendo verlo con calma y tomar notas. Es denso pero vale cada minuto.
+
+Cuando lo termines, escríbeme LISTO y te cuento el siguiente paso. 💪`;
+}
+
+function getCursoCompletadoMessage(nombre) {
+  return `¡Felicitaciones ${nombre}! 🎉
+
+Terminar el curso ya te pone adelante del 90% que nunca termina lo que empieza.
+
+El siguiente paso es la Membresía Platino por solo $6.99 USD:
+✅ 4 meses de acceso a contenido premium
+✅ Lives semanales con Steven
+✅ Comunidad de +500 traders
+✅ Ebook de Fibonacci gratis
+
+Puedes verla aquí: ${LINKS.MEMBRESIA}
+
+¿Tienes alguna pregunta? 💪`;
+}
+
+function getMembresiaMessage(nombre) {
+  return `¡${nombre}! La Membresía Platino es la mejor forma de continuar 📚
+
+Por solo $6.99 USD obtienes:
+✅ 4 meses de acceso a +79 lecciones
+✅ Lives semanales con Steven
+✅ Comunidad de +500 traders
+✅ Ebook Fibonacci gratis
+✅ 2 eventos exclusivos
+
+Puedes verla aquí: ${LINKS.MEMBRESIA}
+
+¿Ya viste el curso gratuito de 12 horas? Si no, te recomiendo empezar por ahí:
+${LINKS.CURSO_GRATUITO}`;
+}
+
+function getQuierePagarMessage(nombre) {
+  return `¡Excelente decisión ${nombre}! 🔥
+
+Puedes adquirir la Membresía Platino aquí:
+${LINKS.MEMBRESIA}
+
+El pago es seguro. Después de pagar tendrás acceso inmediato a:
+✅ La plataforma con +79 lecciones
+✅ Lives semanales
+✅ La comunidad de traders
+
+Si tienes problemas con el pago, escríbenos al WhatsApp: ${LINKS.WHATSAPP}
+
+¡Bienvenido a SR Academy! 🚀`;
+}
+
+function getEscalamientoMessage(nombre) {
+  return `Entendido ${nombre} 🤝
+
+Ya le avisé a Steven y te responderá directamente por este chat en cuanto pueda.
+
+Nuestro horario de atención es de 8am a 5pm (hora Colombia). Si escribes fuera de ese horario, te responderá al día siguiente.
+
+¿Hay algo más en lo que pueda ayudarte mientras tanto?`;
+}
+
+function getSituacionDelicadaMessage(nombre) {
+  return `${nombre}, entiendo que estás pasando por un momento muy difícil 💙
+
+Perder duele. No solo el dinero, también la confianza y el tiempo invertido.
+
+Mi recomendación más honesta: aléjate del mercado unos días. No operes desde la desesperación. El trading va a seguir ahí, pero tu bienestar es primero.
+
+El peor error sería intentar recuperar lo perdido operando más. Eso casi siempre termina peor.
+
+Ya le avisé a Steven de tu situación. Si quieres hablar con él directamente, te contactará pronto.
+
+Una mala racha no te define como trader. 🙏`;
+}
+
+// ═══════════════════════════════════════
+// FUNCIONES AUXILIARES
+// ═══════════════════════════════════════
+
+async function updateLeadStatus(subscriberId, nombre, phone, updates) {
+  try {
+    // Intentar actualizar, si no existe, insertar
+    const leadData = {
+      subscriber_id: subscriberId,
+      first_name: nombre,
+      phone: phone,
+      ...updates,
+      updated_at: new Date().toISOString()
     };
-  }
 
-  // Si no encuentra el patrón pero hay un teléfono en el mensaje
-  const phonePattern = /(\+\d{10,15})/;
-  const phoneMatch = mensaje.match(phonePattern);
-  
-  if (phoneMatch && defaultNombre) {
-    return {
-      hasData: true,
-      nombre: defaultNombre,
-      whatsapp: phoneMatch[1]
-    };
+    await supabaseService.upsertLead(leadData);
+  } catch (error) {
+    Logger.error('Error actualizando lead:', error);
   }
-
-  return { hasData: false };
 }
 
-/**
- * Mensaje después de completar diagnóstico (SENS-XXXX)
- */
-function getPostDiagnosticoMessage(nombre) {
-  return `¡Gracias por completar el diagnóstico, ${nombre}! 🎉
-
-Revisé tu información y tu caso tiene potencial real de automatización.
-
-📞 *¿Te gustaría tener una sesión estratégica 1:1?*
-
-En 30-45 minutos analizamos:
-- Tu operación actual en detalle
-- 3-5 automatizaciones específicas para tu caso
-- Cotización exacta y timeline de implementación
-
-💰 Inversión: $25 USD (se descuentan si trabajamos juntos)
-
-¿Te interesa agendarla? Responde *"Sí, quiero la sesión pagada"* y te ayudo con el pago.`;
+async function saveAnalytics(subscriberId, nombre, categoria, mensaje, respuesta, fueEscalado, startTime, idioma = 'es', emotion = 'NEUTRAL') {
+  try {
+    await supabaseService.saveAnalytics({
+      subscriber_id: subscriberId,
+      nombre_cliente: nombre,
+      categoria: categoria,
+      emocion: emotion,
+      mensaje_cliente: mensaje,
+      respuesta_bot: respuesta,
+      fue_escalado: fueEscalado,
+      duracion_ms: Date.now() - startTime,
+      idioma: idioma
+    });
+  } catch (error) {
+    Logger.error('Error guardando analytics:', error);
+  }
 }
 
-/**
- * Mensaje después de confirmar pago (P-XXXX)
- */
-function getPostPagoMessage(nombre) {
-  return `¡Pago confirmado, ${nombre}! ✅
+async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
+  try {
+    // Verificar si es horario de notificación (8am - 5pm Colombia)
+    const now = new Date();
+    const colombiaOffset = -5;
+    const colombiaHour = (now.getUTCHours() + colombiaOffset + 24) % 24;
+    
+    const isBusinessHours = colombiaHour >= 8 && colombiaHour < 17;
 
-Tu sesión estratégica ya está lista para agendarse.
+    let notification = '';
+    
+    if (tipo === 'LEAD_CALIENTE') {
+      notification = `🔥 LEAD CALIENTE - SR Academy
 
-📅 *Dime tu disponibilidad:*
-¿Qué día y hora te viene mejor? 
+👤 ${nombre}
+📱 ID: ${subscriberId}
+💬 "${mensaje}"
 
-Ejemplos: 
-- "Martes 10am"
-- "Jueves 3pm"
-- "Viernes en la mañana"
+⚡ Este lead quiere pagar/comprar`;
+    } else if (tipo === 'SITUACION_DELICADA') {
+      notification = `⚠️ SITUACIÓN DELICADA - SR Academy
 
-⏰ Horarios disponibles: Lunes a Viernes, 9am - 6pm (GMT-5 Bogotá)
+👤 ${nombre}
+📱 ID: ${subscriberId}
+💬 "${mensaje}"
 
-Te confirmo en los próximos minutos y te envío el link de Google Meet. 
+🚨 Posible crisis emocional/pérdida grande`;
+    } else {
+      notification = `👤 ESCALAMIENTO - SR Academy
 
-¿Cuándo te gustaría tu sesión?`;
+👤 ${nombre}
+📱 ID: ${subscriberId}
+💬 "${mensaje}"
+
+📞 Solicita hablar contigo`;
+    }
+
+    if (!isBusinessHours) {
+      notification += `\n\n⏰ Mensaje fuera de horario (${colombiaHour}:00 Colombia)`;
+    }
+
+    await manychatService.notifyAdmin({
+      subscriberId,
+      nombre,
+      mensaje: notification,
+      timestamp: new Date().toISOString()
+    });
+
+    Logger.info('📢 Admin notificado', { tipo, subscriberId });
+  } catch (error) {
+    Logger.error('Error notificando admin:', error);
+  }
 }
 
 module.exports = router;

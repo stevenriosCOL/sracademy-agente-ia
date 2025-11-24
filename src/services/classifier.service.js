@@ -10,16 +10,17 @@ class ClassifierService {
   }
 
   /**
-   * Clasifica el mensaje del usuario en:
-   * - intent: CONSULTA, DIAGNOSTICO, TECNICO, ESCALAMIENTO
-   * - emotion: CALM, NEUTRAL, FRUSTRATED, ANGRY, SAD, CONFUSED
-   *
-   * Devuelve siempre un objeto:
-   * { intent: 'CONSULTA', emotion: 'NEUTRAL' }
+   * Clasifica el mensaje del usuario para SR Academy
+   * - intent: APRENDER_CERO, MEJORAR, PREGUNTA_TECNICA, PREGUNTA_PSICOLOGIA, 
+   *           INFO_PRODUCTOS, CURSO_COMPLETADO, QUEJA, LEAD_CALIENTE, 
+   *           SITUACION_DELICADA, ESCALAMIENTO, CONVERSACION_GENERAL
+   * - emotion: CALM, CURIOUS, FRUSTRATED, DESPERATE, EXCITED, SKEPTICAL, ANGRY, CONFUSED
+   * - nivel: cero, intermedio, avanzado, null
+   * - urgencia: baja, media, alta
    */
   async classify(message, language = 'es') {
     try {
-      Logger.info('🔍 Clasificando mensaje...', { length: message.length, language });
+      Logger.info('🔍 Clasificando mensaje SR Academy...', { length: message.length, language });
 
       const prompt = this.getClassifierPrompt(language);
 
@@ -30,19 +31,33 @@ class ClassifierService {
           { role: 'user', content: message }
         ],
         temperature: 0.1,
-        max_tokens: 80
+        max_tokens: 150
       });
 
       const raw = completion.choices[0].message.content.trim();
-      let intent = 'CONSULTA';
+      
+      // Valores por defecto
+      let intent = 'CONVERSACION_GENERAL';
       let emotion = 'NEUTRAL';
+      let nivel = null;
+      let urgencia = 'baja';
 
       try {
-        // Esperamos un JSON: { "intent": "...", "emotion": "..." }
         const parsed = JSON.parse(raw);
 
-        const validIntents = ['CONSULTA', 'DIAGNOSTICO', 'TECNICO', 'ESCALAMIENTO'];
-        const validEmotions = ['CALM', 'NEUTRAL', 'FRUSTRATED', 'ANGRY', 'SAD', 'CONFUSED'];
+        const validIntents = [
+          'APRENDER_CERO', 'MEJORAR', 'PREGUNTA_TECNICA', 'PREGUNTA_PSICOLOGIA',
+          'INFO_PRODUCTOS', 'CURSO_COMPLETADO', 'QUEJA', 'LEAD_CALIENTE',
+          'SITUACION_DELICADA', 'ESCALAMIENTO', 'CONVERSACION_GENERAL'
+        ];
+        
+        const validEmotions = [
+          'CALM', 'CURIOUS', 'FRUSTRATED', 'DESPERATE', 
+          'EXCITED', 'SKEPTICAL', 'ANGRY', 'CONFUSED', 'NEUTRAL'
+        ];
+
+        const validNiveles = ['cero', 'intermedio', 'avanzado'];
+        const validUrgencias = ['baja', 'media', 'alta'];
 
         if (parsed.intent && typeof parsed.intent === 'string') {
           const upperIntent = parsed.intent.trim().toUpperCase();
@@ -57,139 +72,209 @@ class ClassifierService {
             emotion = upperEmotion;
           }
         }
-      } catch (parseError) {
-        // Si no vino JSON, intentamos interpretar como antes (solo categoría)
-        Logger.warn('⚠️ Respuesta de clasificador no es JSON, usando fallback simple', { raw });
 
-        const upper = raw.toUpperCase();
-        const validIntents = ['CONSULTA', 'DIAGNOSTICO', 'TECNICO', 'ESCALAMIENTO'];
-        if (validIntents.includes(upper)) {
-          intent = upper;
+        if (parsed.nivel && typeof parsed.nivel === 'string') {
+          const lowerNivel = parsed.nivel.trim().toLowerCase();
+          if (validNiveles.includes(lowerNivel)) {
+            nivel = lowerNivel;
+          }
         }
+
+        if (parsed.urgencia && typeof parsed.urgencia === 'string') {
+          const lowerUrgencia = parsed.urgencia.trim().toLowerCase();
+          if (validUrgencias.includes(lowerUrgencia)) {
+            urgencia = lowerUrgencia;
+          }
+        }
+
+      } catch (parseError) {
+        Logger.warn('⚠️ Respuesta de clasificador no es JSON, usando fallback', { raw });
       }
 
-      Logger.info(`✅ Mensaje clasificado`, { intent, emotion });
+      Logger.info(`✅ Mensaje clasificado SR Academy`, { intent, emotion, nivel, urgencia });
 
-      return { intent, emotion };
+      return { intent, emotion, nivel, urgencia };
+
     } catch (error) {
       Logger.error('Error clasificando mensaje:', error);
-      // Fallback seguro
       return {
-        intent: 'CONSULTA',
-        emotion: 'NEUTRAL'
+        intent: 'CONVERSACION_GENERAL',
+        emotion: 'NEUTRAL',
+        nivel: null,
+        urgencia: 'baja'
       };
     }
   }
 
   /**
-   * Prompt del clasificador para Sensora AI
-   * Ahora devuelve JSON con intent + emotion
+   * Prompt del clasificador para SR Academy
    */
   getClassifierPrompt(language = 'es') {
-    return `Eres un clasificador para Sensora AI (empresa de automatización con IA para LATAM).
+    return `Eres un clasificador para SR Academy, la academia de trading de Steven Rios FX.
 
-Debes analizar el mensaje del cliente y devolver SIEMPRE un JSON con esta forma EXACTA:
+Analiza el mensaje y devuelve SIEMPRE un JSON con esta forma EXACTA:
 
 {
-  "intent": "CONSULTA|DIAGNOSTICO|TECNICO|ESCALAMIENTO",
-  "emotion": "CALM|NEUTRAL|FRUSTRATED|ANGRY|SAD|CONFUSED"
+  "intent": "...",
+  "emotion": "...",
+  "nivel": "...",
+  "urgencia": "..."
 }
 
-SIN texto extra, SIN explicaciones, SIN comentarios. Solo el JSON.
+SIN texto extra, SIN explicaciones. Solo el JSON.
 
-DEFINICIONES DE INTENT:
+═══════════════════════════════════════
+INTENCIONES POSIBLES (intent):
+═══════════════════════════════════════
 
-- CONSULTA:
-  - saludos
-  - preguntas generales sobre qué hace Sensora AI
-  - cómo funciona, precios, sectores que atiende
-  - dudas comerciales básicas
-  - preguntas "de ejemplo", "simula que", "dame un ejemplo de respuesta"
-  - mensajes de evaluación del bot (cuando alguien solo está probando el sistema)
+APRENDER_CERO:
+- Quiere empezar en trading desde cero
+- No sabe nada, es principiante total
+- Frases: "quiero aprender", "soy nuevo", "cómo empiezo", "no sé nada de trading"
 
-- DIAGNOSTICO:
-  - el cliente describe un problema específico de su empresa
-  - menciona tareas manuales que consumen tiempo
-  - pide analizar su caso
-  - quiere saber si Sensora puede ayudarle con su situación particular
-  - solicita diagnóstico gratuito
+MEJORAR:
+- Ya opera pero pierde dinero o no es consistente
+- Tiene experiencia pero no resultados
+- Frases: "llevo tiempo operando pero pierdo", "no soy rentable", "qué hago mal"
 
-- TECNICO:
-  - preguntas sobre stack tecnológico (lenguajes, infra, herramientas)
-  - integraciones específicas (MercadoPago, WhatsApp API, Airtable, etc.)
-  - tiempos de desarrollo, arquitectura de sistemas
+PREGUNTA_TECNICA:
+- Pregunta sobre indicadores, patrones, análisis técnico
+- Estrategias, velas, soportes, resistencias, fibonacci
+- Frases: "qué es un martillo", "cómo uso RSI", "cuándo entrar"
 
-- ESCALAMIENTO:
-  - SOLO si se trata de un caso REAL del cliente (no un ejemplo)
-  - y además:
-    - pide explícitamente hablar con una persona real / humano / equipo
-    - o quiere agendar llamada directa
-    - o reporta un problema GRAVE y URGENTE sobre un sistema EN PRODUCCIÓN suyo
-  - Frases típicas:
-    - "quiero hablar con alguien"
-    - "ponme con un humano"
-    - "necesito hablar con el equipo"
-    - "quiero agendar una llamada ya"
+PREGUNTA_PSICOLOGIA:
+- Pregunta sobre emociones, miedo, disciplina, mentalidad
+- Control emocional, FOMO, ego, paciencia
+- Frases: "cómo controlo el miedo", "me cuesta la disciplina", "opero por impulso"
 
-⚠️ REGLAS ESPECIALES (MUY IMPORTANTES):
-- Si el usuario escribe cosas como:
-  - "Simula que soy un cliente que quiere cancelar un plan"
-  - "Dame un ejemplo de cómo responderías a alguien molesto"
-  - "Respóndeme como si estuviera decepcionado"
-  - "Qué harías si un cliente...?"
-  Entonces NO es un caso real, es una prueba. En esos casos:
-  intent = "CONSULTA"
+INFO_PRODUCTOS:
+- Pregunta por precios, membresía, cursos pagados, academia
+- Quiere saber costos, qué incluye, cómo pagar
+- Frases: "cuánto cuesta", "qué incluye la membresía", "tienen cursos"
 
-- "ayudar", "ayuda", "necesito ayuda" → NO es ESCALAMIENTO por sí solo
-- "hola", "buenos días", "cómo estás" → CONSULTA
-- "tengo un problema con X" → normalmente DIAGNOSTICO (a menos que pida hablar con humano)
-- "usan Node.js?" → TECNICO
+CURSO_COMPLETADO:
+- Indica que terminó el curso gratuito de 12 horas
+- Escribe "LISTO" o similar
+- Frases: "listo", "ya terminé el curso", "vi todo el curso"
 
-DEFINICIONES DE EMOTION (del cliente):
+QUEJA:
+- Frustración con el servicio o contenido
+- Reclamo, insatisfacción
+- Frases: "esto no sirve", "me siento estafado", "no me ayudó"
 
-- CALM: tranquilo, educado, sin urgencia
-- NEUTRAL: informativo, directo, sin carga emocional importante
-- FRUSTRATED: expresa molestia moderada, cansancio, "esto no funciona", quejas suaves
-- ANGRY: muy molesto, exige soluciones, usa tono fuerte
-- SAD: expresa decepción, desánimo, "me siento decepcionado", "esto me tiene mal"
-- CONFUSED: no entiende algo, pide aclaración, se nota perdido
+LEAD_CALIENTE:
+- Quiere comprar o pagar YA
+- Listo para adquirir membresía o curso
+- Frases: "quiero pagar", "cómo compro", "dónde pago la membresía"
 
-EJEMPLOS RÁPIDOS:
+SITUACION_DELICADA:
+- Menciona pérdida grande de dinero
+- Desesperación, crisis emocional relacionada con trading
+- Frases: "perdí todo", "quemé mi cuenta", "no sé qué hacer", "estoy desesperado"
+- ⚠️ MUY IMPORTANTE DETECTAR ESTO
 
-"Hola, qué es Sensora AI?" →
-{
-  "intent": "CONSULTA",
-  "emotion": "CALM"
-}
+ESCALAMIENTO:
+- Pide hablar con Steven directamente
+- Quiere atención humana específica
+- Frases: "quiero hablar con Steven", "necesito hablar con alguien", "ponme con un humano"
 
-"Mi equipo pierde 20 horas semanales en reportes manuales, pueden ayudar?" →
-{
-  "intent": "DIAGNOSTICO",
-  "emotion": "NEUTRAL"
-}
+CONVERSACION_GENERAL:
+- Saludos, agradecimientos, conversación casual
+- Frases: "hola", "gracias", "cómo estás", "buenos días"
 
-"Usan Node.js y se integran con MercadoPago?" →
-{
-  "intent": "TECNICO",
-  "emotion": "NEUTRAL"
-}
+═══════════════════════════════════════
+EMOCIONES POSIBLES (emotion):
+═══════════════════════════════════════
 
-"Quiero hablar con alguien del equipo, esto no puede seguir así" →
-{
-  "intent": "ESCALAMIENTO",
-  "emotion": "ANGRY"
-}
+CALM: Tranquilo, educado, sin urgencia
+CURIOUS: Curioso, quiere aprender, hace preguntas genuinas
+FRUSTRATED: Molestia moderada, cansancio, "esto no funciona"
+DESPERATE: Desesperado, en crisis, "perdí todo" ⚠️ IMPORTANTE
+EXCITED: Emocionado, motivado, entusiasmado
+SKEPTICAL: Escéptico, desconfiado, "esto es real?"
+ANGRY: Muy molesto, exige, tono fuerte
+CONFUSED: No entiende, perdido, pide aclaración
+NEUTRAL: Sin carga emocional clara
 
-"Simula que soy un cliente que quiere cancelar un plan. ¿Qué harías?" →
-{
-  "intent": "CONSULTA",
-  "emotion": "NEUTRAL"
-}
+═══════════════════════════════════════
+NIVEL DE EXPERIENCIA (nivel):
+═══════════════════════════════════════
 
+cero: No sabe nada, nunca ha operado
+intermedio: Ya opera pero no es rentable/consistente
+avanzado: Es rentable, busca mejorar
+null: No se puede determinar
+
+═══════════════════════════════════════
+URGENCIA (urgencia):
+═══════════════════════════════════════
+
+baja: Consulta normal, sin prisa
+media: Tiene interés activo, quiere respuesta pronto
+alta: Quiere comprar YA o está en crisis emocional
+
+═══════════════════════════════════════
+REGLAS CRÍTICAS:
+═══════════════════════════════════════
+
+1. Si menciona "perdí todo", "quemé la cuenta", "estoy desesperado" → SITUACION_DELICADA + DESPERATE + urgencia alta
+
+2. Si dice "LISTO" o "terminé el curso" → CURSO_COMPLETADO
+
+3. Si pregunta "cuánto cuesta", "precio", "membresía", "cómo pago" → INFO_PRODUCTOS
+
+4. Si dice "quiero hablar con Steven" o "con un humano" → ESCALAMIENTO
+
+5. Si dice "quiero pagar", "dónde pago", "lo compro" → LEAD_CALIENTE + urgencia alta
+
+6. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
+
+7. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
+
+8. Preguntas sobre miedo, disciplina, emociones → PREGUNTA_PSICOLOGIA
+
+═══════════════════════════════════════
+EJEMPLOS:
+═══════════════════════════════════════
+
+"Hola, quiero aprender trading desde cero" →
+{"intent": "APRENDER_CERO", "emotion": "CURIOUS", "nivel": "cero", "urgencia": "baja"}
+
+"Llevo 6 meses operando pero sigo perdiendo" →
+{"intent": "MEJORAR", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
+
+"Cómo identifico un patrón de hombro cabeza hombro?" →
+{"intent": "PREGUNTA_TECNICA", "emotion": "CURIOUS", "nivel": null, "urgencia": "baja"}
+
+"No puedo controlar mis emociones cuando opero" →
+{"intent": "PREGUNTA_PSICOLOGIA", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
+
+"Cuánto cuesta la membresía?" →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
+
+"LISTO, ya vi todo el curso" →
+{"intent": "CURSO_COMPLETADO", "emotion": "EXCITED", "nivel": null, "urgencia": "media"}
+
+"Perdí $5000, no sé qué hacer, estoy desesperado" →
+{"intent": "SITUACION_DELICADA", "emotion": "DESPERATE", "nivel": "intermedio", "urgencia": "alta"}
+
+"Quiero pagar la membresía, cómo hago?" →
+{"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
+
+"Quiero hablar con Steven directamente" →
+{"intent": "ESCALAMIENTO", "emotion": "NEUTRAL", "nivel": null, "urgencia": "media"}
+
+"Hola, buenos días" →
+{"intent": "CONVERSACION_GENERAL", "emotion": "CALM", "nivel": null, "urgencia": "baja"}
+
+═══════════════════════════════════════
 RECORDATORIO FINAL:
-- Responde SIEMPRE solo con un JSON válido.
-- LAS CLAVES deben ser exactamente "intent" y "emotion".
-- Los valores deben estar en MAYÚSCULAS.`;
+═══════════════════════════════════════
+- Responde SOLO con JSON válido
+- Las claves deben ser exactamente: intent, emotion, nivel, urgencia
+- Los valores de intent y emotion en MAYÚSCULAS
+- Los valores de nivel y urgencia en minúsculas
+- Si no puedes determinar nivel, usa null`;
   }
 }
 

@@ -3,7 +3,7 @@ const config = require('../config/env.config');
 const supabaseService = require('./supabase.service');
 const Logger = require('../utils/logger.util');
 
-class RAGService {
+class RagService {
   constructor() {
     this.openai = new OpenAI({
       apiKey: config.OPENAI_API_KEY,
@@ -11,64 +11,116 @@ class RAGService {
   }
 
   /**
-   * Busca contexto relevante en la base de conocimiento de Sensora AI
+   * Genera embedding para un texto usando OpenAI
    */
-  async searchKnowledge(query, topK = 6) {
+  async generateEmbedding(text) {
     try {
-      Logger.debug('🔍 Buscando en knowledge base Sensora AI:', { query, topK });
-
-      // 1. Generar embedding del query
-      const embeddingResponse = await this.openai.embeddings.create({
+      const response = await this.openai.embeddings.create({
         model: 'text-embedding-3-small',
-        input: query,
+        input: text,
       });
 
-      const queryEmbedding = embeddingResponse.data[0].embedding;
-
-      // 2. Buscar documentos similares usando la función de Supabase
-      const { data, error } = await supabaseService.supabase.rpc('match_sensora_knowledge', {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.7,
-        match_count: topK
-      });
-
-      if (error) {
-        Logger.error('Error en búsqueda RAG:', error);
-        return [];
-      }
-
-      if (!data || data.length === 0) {
-        Logger.warn('No se encontraron documentos relevantes en RAG');
-        return [];
-      }
-
-      Logger.info(`✅ RAG encontró ${data.length} documentos relevantes`);
-      return data;
-
+      return response.data[0].embedding;
     } catch (error) {
-      Logger.error('Error en RAG search:', error);
+      Logger.error('Error generando embedding:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Busca conocimiento relevante en la base de SR Academy
+   */
+  async searchKnowledge(query, threshold = 0.7, count = 5) {
+    try {
+      // 1. Generar embedding del query
+      const queryEmbedding = await this.generateEmbedding(query);
+      
+      if (!queryEmbedding) {
+        Logger.warn('No se pudo generar embedding, RAG deshabilitado para esta consulta');
+        return [];
+      }
+
+      // 2. Buscar en Supabase
+      const results = await supabaseService.searchKnowledge(queryEmbedding, threshold, count);
+
+      Logger.info(`📚 RAG: ${results.length} resultados encontrados`);
+      
+      return results;
+    } catch (error) {
+      Logger.error('Error en searchKnowledge:', error);
       return [];
     }
   }
 
   /**
-   * Formatea el contexto RAG para incluirlo en el prompt del agente
+   * Formatea el contexto RAG para incluir en el prompt del agente
    */
   formatContextForAgent(results) {
     if (!results || results.length === 0) {
-      return 'IMPORTANTE: No se encontró información específica en la base de conocimiento. Responde con conocimiento general de Sensora AI, pero para detalles técnicos específicos recomienda contactar a info@getsensora.com';
+      return '';
     }
 
-    const context = results
-      .map((doc, index) => `[Fuente ${index + 1}]\n${doc.content}`)
-      .join('\n\n---\n\n');
+    let context = `
+═══════════════════════════════════════
+CONTEXTO DE BASE DE CONOCIMIENTO SR ACADEMY
+(Usa esta información para responder con precisión)
+═══════════════════════════════════════
 
-    return `BASE DE CONOCIMIENTO OFICIAL DE SENSORA AI:
-    
-${context}
+`;
 
-IMPORTANTE: Esta es la información OFICIAL y VERIFICADA. Úsala como tu fuente principal. Si el cliente pregunta algo que está aquí, responde basándote en esta información.`;
+    results.forEach((result, index) => {
+      const source = result.source || 'general';
+      const categoria = result.categoria || '';
+      const similarity = Math.round((result.similarity || 0) * 100);
+      
+      context += `[Fuente ${index + 1}] (${source}${categoria ? ` - ${categoria}` : ''}) [Relevancia: ${similarity}%]
+${result.content}
+
+`;
+    });
+
+    context += `═══════════════════════════════════════
+INSTRUCCIÓN: Usa SOLO la información de arriba si es relevante.
+Si la pregunta NO está en el contexto, usa tu conocimiento general de trading.
+NUNCA inventes información que no tengas.
+═══════════════════════════════════════`;
+
+    return context;
+  }
+
+  /**
+   * Método para agregar conocimiento a la base (uso administrativo)
+   */
+  async addKnowledge(content, source, categoria, metadata = {}) {
+    try {
+      // Generar embedding
+      const embedding = await this.generateEmbedding(content);
+      
+      if (!embedding) {
+        Logger.error('No se pudo generar embedding para nuevo conocimiento');
+        return false;
+      }
+
+      // Insertar en Supabase (requiere método en supabaseService)
+      // Por ahora solo logueamos
+      Logger.info('📝 Conocimiento listo para insertar', { 
+        source, 
+        categoria, 
+        contentLength: content.length 
+      });
+
+      return {
+        content,
+        source,
+        categoria,
+        metadata,
+        embedding
+      };
+    } catch (error) {
+      Logger.error('Error agregando conocimiento:', error);
+      return false;
+    }
   }
 }
 
-module.exports = new RAGService();
+module.exports = new RagService();

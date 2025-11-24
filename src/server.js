@@ -10,7 +10,7 @@ function validateEnvironment() {
     'OPENAI_API_KEY',
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'MANYCHAT_TOKEN'
+    'MANYCHAT_API_KEY'
   ];
 
   const missing = requiredVars.filter(varName => !process.env[varName]);
@@ -30,14 +30,14 @@ function startServer() {
     validateEnvironment();
 
     const server = app.listen(PORT, () => {
-      Logger.info('=================================');
-      Logger.info('🚀 VuelaSim Super Agente Backend');
-      Logger.info('=================================');
+      Logger.info('═══════════════════════════════════════');
+      Logger.info('🎓 SR ACADEMY - Agente IA');
+      Logger.info('═══════════════════════════════════════');
       Logger.info(`🌍 Servidor corriendo en puerto ${PORT}`);
       Logger.info(`📝 Ambiente: ${config.NODE_ENV}`);
       Logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
-      Logger.info(`📡 Webhook: http://localhost:${PORT}/webhook/vuelasim-bot`);
-      Logger.info('=================================');
+      Logger.info(`📡 Webhook: http://localhost:${PORT}/webhook/sracademy-bot`);
+      Logger.info('═══════════════════════════════════════');
     });
 
     // Manejo de señales de terminación

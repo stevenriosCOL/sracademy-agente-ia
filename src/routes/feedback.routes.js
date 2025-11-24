@@ -4,70 +4,79 @@ const supabaseService = require('../services/supabase.service');
 const Logger = require('../utils/logger.util');
 
 /**
- * POST /webhook/feedback-sensora
- * Recibe feedback de clientes desde ManyChat sobre calidad de servicio
+ * POST /webhook/feedback-sracademy
+ * Recibe feedback de los usuarios sobre las respuestas del bot
  */
-router.post('/feedback-sensora', async (req, res) => {
+router.post('/feedback-sracademy', async (req, res) => {
   try {
-    Logger.info('📝 Feedback recibido', { body: req.body });
+    const { subscriber_id, nombre_cliente, calificacion, comentario, categoria_conversacion } = req.body;
 
-    const body = req.body || {};
-    const subscriberId = body.subscriber_id || 'unknown';
-    const nombre = body.nombre || body.first_name || 'Cliente';
-    const calificacion = body.calificacion || 'sin_calificar';
-    const comentario = body.comentario || null;
-
-    // Validar calificación
-    const calificacionesValidas = ['excelente', 'buena', 'regular', 'mala'];
-    if (!calificacionesValidas.includes(calificacion.toLowerCase())) {
-      Logger.warn('⚠️ Calificación inválida', { calificacion });
-      return res.status(400).json({ 
-        error: 'Calificación inválida. Debe ser: excelente, buena, regular o mala' 
+    // Validar campos requeridos
+    if (!subscriber_id || !calificacion) {
+      return res.status(400).json({
+        success: false,
+        error: 'subscriber_id y calificacion son requeridos'
       });
     }
 
-    // Buscar última conversación del usuario
-    const lastConversation = await supabaseService.getLastConversation(subscriberId);
-    const categoriaConversacion = lastConversation?.categoria || null;
+    // Validar que calificación esté entre 1 y 5
+    const rating = parseInt(calificacion);
+    if (isNaN(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        error: 'La calificación debe ser un número entre 1 y 5'
+      });
+    }
 
     // Guardar feedback
-    const feedbackData = {
-      subscriber_id: subscriberId,
-      nombre_cliente: nombre,
-      calificacion: calificacion.toLowerCase(),
-      categoria_conversacion: categoriaConversacion,
-      comentario: comentario
-    };
+    await supabaseService.saveFeedback({
+      subscriber_id,
+      nombre_cliente: nombre_cliente || 'Usuario',
+      calificacion: rating,
+      comentario: comentario || '',
+      categoria_conversacion: categoria_conversacion || 'general'
+    });
 
-    const saved = await supabaseService.saveFeedback(feedbackData);
+    Logger.info('✅ Feedback guardado', { 
+      subscriber_id, 
+      calificacion: rating 
+    });
 
-    if (saved) {
-      Logger.info('✅ Feedback guardado exitosamente', { 
-        subscriberId, 
-        calificacion 
-      });
-
-      return res.status(200).json({
-        status: 'success',
-        message: 'Gracias por tu feedback! Nos ayuda a mejorar.',
-        data: {
-          subscriber_id: subscriberId,
-          calificacion: calificacion.toLowerCase()
-        }
-      });
-    } else {
-      return res.status(500).json({
-        status: 'error',
-        message: 'Error guardando feedback'
-      });
-    }
+    res.status(200).json({
+      success: true,
+      message: '¡Gracias por tu feedback! Nos ayuda a mejorar. 🙏'
+    });
 
   } catch (error) {
-    Logger.error('❌ Error procesando feedback:', error);
+    Logger.error('❌ Error guardando feedback:', error);
     
-    return res.status(500).json({
-      status: 'error',
-      error: error.message
+    res.status(500).json({
+      success: false,
+      error: 'Error procesando el feedback'
+    });
+  }
+});
+
+/**
+ * GET /webhook/feedback-stats
+ * Obtiene estadísticas de feedback (para uso interno/admin)
+ */
+router.get('/feedback-stats', async (req, res) => {
+  try {
+    // Por ahora retornamos un placeholder
+    // Puedes implementar la lógica completa después
+    res.status(200).json({
+      success: true,
+      message: 'Endpoint de estadísticas - próximamente',
+      data: {}
+    });
+
+  } catch (error) {
+    Logger.error('❌ Error obteniendo stats:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Error obteniendo estadísticas'
     });
   }
 });
