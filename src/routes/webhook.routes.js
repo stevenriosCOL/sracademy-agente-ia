@@ -8,7 +8,7 @@ const manychatService = require('../services/manychat.service');
 const { detectLanguage } = require('../utils/language.util');
 const Logger = require('../utils/logger.util');
 
-// ✅ NUEVO: Whisper service
+// ✅ Whisper service (debe estar)
 const whisperService = require('../services/whisper.service');
 
 // Links de SR Academy
@@ -18,7 +18,7 @@ const LINKS = {
   WHATSAPP: '+573142735697'
 };
 
-// Función de sanitización
+// Función de sanitización (la dejamos, pero el paso a paso sanitiza inline)
 const sanitizeInput = (text) => {
   if (!text) return '';
   return String(text).trim().slice(0, 1000);
@@ -26,76 +26,78 @@ const sanitizeInput = (text) => {
 
 /**
  * Webhook principal de ManyChat para SR Academy
+ * ✅ RUTA CORRECTA: '/'
  */
 router.post('/', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    // 1. Extraer datos de ManyChat desde subscriber_data (to_json:true)
-    // ManyChat envía todo en subscriber_data cuando usas to_json:true
-    const data = req.body?.subscriber_data || req.body || {};
+    // ✅ PASO 2: EXTRAER DATOS DE subscriber_data (ManyChat con to_json:true)
+    // En este paso a paso se usa req.body directamente
+    const data = req.body;
 
-    // Extraer datos (pueden venir en diferentes estructuras)
-    const subscriber_id = data.id || data.subscriber_id || req.body?.id || req.body?.subscriber_id;
-    const first_name = data.first_name || data.name || req.body?.first_name || req.body?.name || '';
-    const last_name = data.last_name || req.body?.last_name || '';
-    const phone = data.phone || data.whatsapp_phone_number || req.body?.phone || req.body?.whatsapp_phone_number;
-    const last_input_text = data.last_input_text || data.text || req.body?.last_input_text || req.body?.text || '';
+    const subscriber_id = data.id || data.subscriber_id;
+    const first_name = data.first_name || data.name;
+    const last_name = data.last_name || '';
+    const phone = data.phone || data.whatsapp_phone;
+    const last_input_text = data.last_input_text || data.text;
+
+    Logger.info('📥 Datos recibidos de ManyChat', {
+      subscriber_id,
+      first_name,
+      last_input_text: last_input_text ? last_input_text.substring(0, 50) : '[vacío]'
+    });
 
     if (!subscriber_id) {
-      Logger.warn('Request inválido - falta subscriber_id', req.body);
+      Logger.warn('⚠️ Request inválido - falta subscriber_id');
       return res.status(400).json({ error: 'subscriber_id es requerido' });
     }
 
     const nombre = first_name || 'Trader';
-    let mensaje = sanitizeInput(last_input_text);
+    let mensaje = last_input_text;
 
-    Logger.info('📨 [SR Academy] Mensaje recibido', { 
-      subscriber_id, 
-      nombre, 
-      mensaje: mensaje ? mensaje.substring(0, 50) + '...' : '[vacío]'
-    });
+    // Sanitizar mensaje (tal cual paso a paso)
+    if (mensaje) {
+      mensaje = mensaje.trim();
+      if (mensaje.length > 1000) {
+        mensaje = mensaje.substring(0, 1000);
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // DETECTAR SI ES AUDIO (URL en last_input_text)
     // ═══════════════════════════════════════════════════════════════
-
     const esAudio = mensaje && (
       mensaje.includes('.ogg') || 
       mensaje.includes('.mp3') || 
       mensaje.includes('.m4a') ||
-      mensaje.includes('.wav') ||
-      (mensaje.startsWith('http') && mensaje.includes('audio'))
+      mensaje.includes('.wav')
     );
 
     if (esAudio) {
-      Logger.info('🎤 Audio detectado, transcribiendo...', { subscriber_id });
+      Logger.info('🎤 Audio detectado, transcribiendo...');
       
       try {
-        const audioUrl = mensaje;
-        const transcription = await whisperService.transcribeAudio(audioUrl);
+        const transcription = await whisperService.transcribeAudio(mensaje);
         mensaje = transcription.text;
 
-        Logger.info('✅ Audio transcrito', { 
-          subscriber_id, 
-          preview: mensaje.substring(0, 100) + '...'
-        });
-
+        Logger.info('✅ Audio transcrito', { preview: mensaje.substring(0, 100) });
+        
         // Guardar transcripción
         await supabaseService.supabase
           .from('sracademy_audio_transcriptions')
           .insert({
-            subscriber_id: subscriber_id,
-            audio_url: audioUrl,
+            subscriber_id,
+            audio_url: last_input_text,
             transcription: mensaje,
-            duracion_segundos: transcription.duration || null,
+            duracion_segundos: transcription.duration,
             idioma: 'es'
           });
 
       } catch (error) {
         Logger.error('❌ Error transcribiendo audio:', error);
         return res.json({ 
-          response: 'Disculpa, no pude escuchar tu audio. ¿Podrías escribirme en texto? 📝' 
+          response: 'Disculpa, no pude escuchar tu audio. ¿Podrías escribirme en texto?' 
         });
       }
     }
@@ -106,6 +108,8 @@ router.post('/', async (req, res) => {
         response: 'No recibí tu mensaje. ¿Podrías intentarlo de nuevo?'
       });
     }
+
+    Logger.info('📨 [SR Academy] Mensaje recibido', { subscriber_id, nombre, mensaje });
 
     // ═══════════════════════════════════════
     // 2. DETECCIÓN DE PALABRAS CLAVE ESPECIALES
@@ -496,12 +500,11 @@ Una mala racha no te define como trader. 🙏`;
 }
 
 // ═══════════════════════════════════════
-// FUNCIONES AUXILIARES
+// FUNCIONES AUXILILARES
 // ═══════════════════════════════════════
 
 async function updateLeadStatus(subscriberId, nombre, phone, updates) {
   try {
-    // Intentar actualizar, si no existe, insertar
     const leadData = {
       subscriber_id: subscriberId,
       first_name: nombre,
@@ -536,7 +539,6 @@ async function saveAnalytics(subscriberId, nombre, categoria, mensaje, respuesta
 
 async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
   try {
-    // Verificar si es horario de notificación (8am - 5pm Colombia)
     const now = new Date();
     const colombiaOffset = -5;
     const colombiaHour = (now.getUTCHours() + colombiaOffset + 24) % 24;
@@ -589,4 +591,5 @@ async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
 }
 
 module.exports = router;
+
 
