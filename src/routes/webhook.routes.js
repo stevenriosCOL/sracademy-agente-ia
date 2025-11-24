@@ -8,6 +8,9 @@ const manychatService = require('../services/manychat.service');
 const { detectLanguage } = require('../utils/language.util');
 const Logger = require('../utils/logger.util');
 
+// ✅ NUEVO: Whisper service
+const whisperService = require('../services/whisper.service');
+
 // Links de SR Academy
 const LINKS = {
   CURSO_GRATUITO: 'https://www.youtube.com/playlist?list=PLtik6WwJuNioT_cIRjR9kEfpjA62wNntK',
@@ -29,15 +32,55 @@ router.post('/', async (req, res) => {
 
   try {
     // 1. Extraer datos de ManyChat
-    const { subscriber_id, first_name, last_input_text, phone } = req.body;
+    const { subscriber_id, first_name, last_input_text, phone, audio_url } = req.body;
 
-    if (!subscriber_id || !last_input_text) {
+    // ✅ AJUSTE: ahora permitimos audio sin texto
+    if (!subscriber_id) {
       Logger.warn('Request inválido - faltan campos', req.body);
-      return res.status(400).json({ error: 'subscriber_id y last_input_text son requeridos' });
+      return res.status(400).json({ error: 'subscriber_id es requerido' });
     }
 
-    const mensaje = sanitizeInput(last_input_text);
     const nombre = first_name || 'Trader';
+
+    // ✅ AJUSTE: mensaje puede venir vacío si hay audio
+    let mensaje = sanitizeInput(last_input_text);
+
+    // ✅ NUEVO: Si hay audio, transcribirlo
+    if (audio_url && !mensaje) {
+      Logger.info('🎤 Audio recibido, transcribiendo...', { subscriber_id });
+
+      try {
+        const transcription = await whisperService.transcribeAudio(audio_url);
+        mensaje = transcription.text;
+
+        Logger.info('📝 Audio transcrito', {
+          subscriber_id,
+          preview: mensaje.substring(0, 100) + '...'
+        });
+
+        // Guardar transcripción
+        await supabaseService.supabase
+          .from('sracademy_audio_transcriptions')
+          .insert({
+            subscriber_id: subscriber_id,
+            audio_url: audio_url,
+            transcription: mensaje,
+            duracion_segundos: transcription.duration,
+            idioma: 'es'
+          });
+
+      } catch (error) {
+        Logger.error('❌ Error transcribiendo audio:', error);
+        return res.json({
+          response: 'Disculpa, no pude escuchar tu audio. ¿Podrías escribirme en texto?'
+        });
+      }
+    }
+
+    // ✅ NUEVO: Si no hay ni texto ni audio
+    if (!mensaje) {
+      return res.status(400).json({ error: 'Mensaje o audio requerido' });
+    }
 
     Logger.info('📨 [SR Academy] Mensaje recibido', { subscriber_id, nombre, mensaje });
 
@@ -48,9 +91,9 @@ router.post('/', async (req, res) => {
     // LISTO - Completó el curso gratuito
     if (detectCursoCompletado(mensaje)) {
       Logger.info('🎓 Usuario completó curso gratuito', { subscriber_id });
-      
+
       const response = getCursoCompletadoMessage(nombre);
-      
+
       // Actualizar lead en Supabase
       await updateLeadStatus(subscriber_id, nombre, phone, {
         curso_gratuito_completado: true
@@ -64,9 +107,9 @@ router.post('/', async (req, res) => {
     // CURSO GRATUITO - Pide el link del curso
     if (detectCursoGratuitoIntent(mensaje)) {
       Logger.info('📚 Usuario pide curso gratuito', { subscriber_id });
-      
+
       const response = getCursoGratuitoMessage(nombre, subscriber_id);
-      
+
       // Actualizar lead
       await updateLeadStatus(subscriber_id, nombre, phone, {
         curso_gratuito_enviado: true
@@ -80,9 +123,9 @@ router.post('/', async (req, res) => {
     // MEMBRESÍA - Pide info de membresía directamente
     if (detectMembresiaIntent(mensaje)) {
       Logger.info('💰 Usuario pregunta por membresía', { subscriber_id });
-      
+
       const response = getMembresiaMessage(nombre);
-      
+
       await updateLeadStatus(subscriber_id, nombre, phone, {
         interesado_membresia: true
       });
@@ -95,12 +138,12 @@ router.post('/', async (req, res) => {
     // QUIERO PAGAR - Lead caliente
     if (detectQuierePagar(mensaje)) {
       Logger.info('🔥 LEAD CALIENTE - Quiere pagar', { subscriber_id, nombre });
-      
+
       const response = getQuierePagarMessage(nombre);
-      
+
       // Notificar a Steven (lead caliente)
       await notifyAdmin(subscriber_id, nombre, mensaje, 'LEAD_CALIENTE');
-      
+
       await updateLeadStatus(subscriber_id, nombre, phone, {
         interesado_membresia: true,
         qualified: true
@@ -114,9 +157,9 @@ router.post('/', async (req, res) => {
     // HABLAR CON STEVEN - Escalamiento directo
     if (detectEscalamientoDirecto(mensaje)) {
       Logger.info('👤 Usuario pide hablar con Steven', { subscriber_id });
-      
+
       const response = getEscalamientoMessage(nombre);
-      
+
       await notifyAdmin(subscriber_id, nombre, mensaje, 'ESCALAMIENTO');
 
       await saveAnalytics(subscriber_id, nombre, 'ESCALAMIENTO', mensaje, response, true, startTime);
@@ -127,9 +170,9 @@ router.post('/', async (req, res) => {
     // SITUACIÓN DELICADA - Pérdida, desesperación
     if (detectSituacionDelicada(mensaje)) {
       Logger.info('⚠️ SITUACIÓN DELICADA detectada', { subscriber_id, nombre });
-      
+
       const response = getSituacionDelicadaMessage(nombre);
-      
+
       // Notificar a Steven siempre en casos delicados
       await notifyAdmin(subscriber_id, nombre, mensaje, 'SITUACION_DELICADA');
 
@@ -142,7 +185,7 @@ router.post('/', async (req, res) => {
     // 3. RATE LIMITING
     // ═══════════════════════════════════════
     const rateLimitResult = await rateLimitService.checkRateLimit(subscriber_id);
-    
+
     if (!rateLimitResult.allowed) {
       const limitMessage = `Has alcanzado el límite de mensajes por hoy. Intenta mañana o escríbenos al WhatsApp: ${LINKS.WHATSAPP}`;
       Logger.warn('❌ Rate limit excedido', { subscriber_id });
@@ -211,18 +254,18 @@ router.post('/', async (req, res) => {
     // ═══════════════════════════════════════
     // 9. RESPONDER
     // ═══════════════════════════════════════
-    Logger.info('✅ [SR Academy] Respuesta generada', { 
-      subscriber_id, 
-      intent, 
+    Logger.info('✅ [SR Academy] Respuesta generada', {
+      subscriber_id,
+      intent,
       emotion,
-      duracion: Date.now() - startTime 
+      duracion: Date.now() - startTime
     });
 
     return res.json({ response: respuesta });
 
   } catch (error) {
     Logger.error('❌ Error en webhook SR Academy:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       response: `Disculpa, tuve un problema técnico. Escríbenos al WhatsApp: ${LINKS.WHATSAPP}`
     });
   }
