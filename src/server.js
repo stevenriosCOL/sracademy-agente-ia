@@ -49,7 +49,7 @@ function startServer() {
       Logger.info(`🌍 Servidor corriendo en puerto ${PORT}`);
       Logger.info(`📝 Ambiente: ${config.NODE_ENV}`);
       Logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
-      Logger.info(`📡 Webhook: http://localhost:${PORT}/webhook/sracademy-bot`);
+      Logger.info(`📡 Webhook: http://localhost:${PORT}/webhook`);
       Logger.info('═══════════════════════════════════════');
     });
 

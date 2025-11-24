@@ -49,11 +49,11 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'running',
     author: 'Steven Rios FX',
-    endpoints: {
-      health: 'GET /health',
-      webhook: 'POST /webhook/sracademy-bot',
-      feedback: 'POST /webhook/feedback-sracademy'
-    }
+endpoints: {
+  health: 'GET /health',
+  webhook: 'POST /webhook',
+  feedback: 'POST /webhook/feedback-sracademy'
+}
   });
 });
 
