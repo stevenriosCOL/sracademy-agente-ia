@@ -31,30 +31,53 @@ router.post('/', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    // 1. Extraer datos de ManyChat
-    const { subscriber_id, first_name, last_input_text, phone, audio_url } = req.body;
+    // 1. Extraer datos de ManyChat desde subscriber_data (to_json:true)
+    // ManyChat envía todo en subscriber_data cuando usas to_json:true
+    const data = req.body?.subscriber_data || req.body || {};
 
-    // ✅ AJUSTE: ahora permitimos audio sin texto
+    // Extraer datos (pueden venir en diferentes estructuras)
+    const subscriber_id = data.id || data.subscriber_id || req.body?.id || req.body?.subscriber_id;
+    const first_name = data.first_name || data.name || req.body?.first_name || req.body?.name || '';
+    const last_name = data.last_name || req.body?.last_name || '';
+    const phone = data.phone || data.whatsapp_phone_number || req.body?.phone || req.body?.whatsapp_phone_number;
+    const last_input_text = data.last_input_text || data.text || req.body?.last_input_text || req.body?.text || '';
+
     if (!subscriber_id) {
-      Logger.warn('Request inválido - faltan campos', req.body);
+      Logger.warn('Request inválido - falta subscriber_id', req.body);
       return res.status(400).json({ error: 'subscriber_id es requerido' });
     }
 
     const nombre = first_name || 'Trader';
-
-    // ✅ AJUSTE: mensaje puede venir vacío si hay audio
     let mensaje = sanitizeInput(last_input_text);
 
-    // ✅ NUEVO: Si hay audio, transcribirlo
-    if (audio_url && !mensaje) {
-      Logger.info('🎤 Audio recibido, transcribiendo...', { subscriber_id });
+    Logger.info('📨 [SR Academy] Mensaje recibido', { 
+      subscriber_id, 
+      nombre, 
+      mensaje: mensaje ? mensaje.substring(0, 50) + '...' : '[vacío]'
+    });
 
+    // ═══════════════════════════════════════════════════════════════
+    // DETECTAR SI ES AUDIO (URL en last_input_text)
+    // ═══════════════════════════════════════════════════════════════
+
+    const esAudio = mensaje && (
+      mensaje.includes('.ogg') || 
+      mensaje.includes('.mp3') || 
+      mensaje.includes('.m4a') ||
+      mensaje.includes('.wav') ||
+      (mensaje.startsWith('http') && mensaje.includes('audio'))
+    );
+
+    if (esAudio) {
+      Logger.info('🎤 Audio detectado, transcribiendo...', { subscriber_id });
+      
       try {
-        const transcription = await whisperService.transcribeAudio(audio_url);
+        const audioUrl = mensaje;
+        const transcription = await whisperService.transcribeAudio(audioUrl);
         mensaje = transcription.text;
 
-        Logger.info('📝 Audio transcrito', {
-          subscriber_id,
+        Logger.info('✅ Audio transcrito', { 
+          subscriber_id, 
           preview: mensaje.substring(0, 100) + '...'
         });
 
@@ -63,26 +86,26 @@ router.post('/', async (req, res) => {
           .from('sracademy_audio_transcriptions')
           .insert({
             subscriber_id: subscriber_id,
-            audio_url: audio_url,
+            audio_url: audioUrl,
             transcription: mensaje,
-            duracion_segundos: transcription.duration,
+            duracion_segundos: transcription.duration || null,
             idioma: 'es'
           });
 
       } catch (error) {
         Logger.error('❌ Error transcribiendo audio:', error);
-        return res.json({
-          response: 'Disculpa, no pude escuchar tu audio. ¿Podrías escribirme en texto?'
+        return res.json({ 
+          response: 'Disculpa, no pude escuchar tu audio. ¿Podrías escribirme en texto? 📝' 
         });
       }
     }
 
-    // ✅ NUEVO: Si no hay ni texto ni audio
-    if (!mensaje) {
-      return res.status(400).json({ error: 'Mensaje o audio requerido' });
+    // Validar mensaje
+    if (!mensaje || mensaje.trim().length === 0) {
+      return res.json({
+        response: 'No recibí tu mensaje. ¿Podrías intentarlo de nuevo?'
+      });
     }
-
-    Logger.info('📨 [SR Academy] Mensaje recibido', { subscriber_id, nombre, mensaje });
 
     // ═══════════════════════════════════════
     // 2. DETECCIÓN DE PALABRAS CLAVE ESPECIALES
@@ -566,3 +589,4 @@ async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
 }
 
 module.exports = router;
+
