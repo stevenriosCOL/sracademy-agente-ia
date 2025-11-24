@@ -6,19 +6,32 @@ const PORT = config.PORT;
 
 // Validar variables de entorno críticas
 function validateEnvironment() {
+  // Variables OBLIGATORIAS
   const requiredVars = [
     'OPENAI_API_KEY',
     'SUPABASE_URL',
-    'SUPABASE_SERVICE_ROLE_KEY',
-    'MANYCHAT_API_KEY'
+    'SUPABASE_SERVICE_ROLE_KEY'
+  ];
+
+  // Variables OPCIONALES (warning si no están)
+  const optionalVars = [
+    'MANYCHAT_API_KEY',
+    'ADMIN_SUBSCRIBER_ID'
   ];
 
   const missing = requiredVars.filter(varName => !process.env[varName]);
 
   if (missing.length > 0) {
-    Logger.error('❌ Variables de entorno faltantes:', missing);
+    Logger.error('❌ Variables de entorno OBLIGATORIAS faltantes:', missing);
     Logger.error('Por favor configura tu archivo .env correctamente');
     process.exit(1);
+  }
+
+  // Verificar opcionales (solo warning)
+  const missingOptional = optionalVars.filter(varName => !process.env[varName]);
+  if (missingOptional.length > 0) {
+    Logger.warn('⚠️ Variables opcionales no configuradas:', missingOptional);
+    Logger.warn('El bot funcionará pero algunas funciones estarán limitadas');
   }
 
   Logger.info('✅ Variables de entorno validadas');
