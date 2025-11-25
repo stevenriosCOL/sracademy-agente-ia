@@ -1,4 +1,6 @@
-const app = require('./app');
+// ❌ NO IMPORTAR APP AQUÍ
+// const app = require('./app');  ← ELIMINAR ESTA LÍNEA
+
 const config = require('./config/env.config');
 const Logger = require('./utils/logger.util');
 
@@ -40,8 +42,13 @@ function validateEnvironment() {
 // Iniciar servidor
 function startServer() {
   try {
+    // 1. PRIMERO: Validar variables
     validateEnvironment();
 
+    // 2. DESPUÉS: Importar app (esto inicializa los services)
+    const app = require('./app');
+
+    // 3. FINALMENTE: Iniciar servidor
     const server = app.listen(PORT, () => {
       Logger.info('═══════════════════════════════════════');
       Logger.info('🎓 SR ACADEMY - Agente IA');
