@@ -355,7 +355,42 @@ class SupabaseService {
       return null;
     }
   }
+
+  // ═══════════════════════════════════════
+  // AUDIO TRANSCRIPTIONS
+  // ═══════════════════════════════════════
+
+  async saveAudioTranscription(data) {
+    try {
+      const { error } = await this.client
+        .from('sracademy_audio_transcriptions')
+        .insert({
+          subscriber_id: data.subscriber_id,
+          audio_url: data.audio_url,
+          transcription: data.transcription,
+          duracion_segundos: data.duracion_segundos,
+          idioma: data.idioma || 'es',
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        Logger.error('Error guardando transcripción:', error);
+        return false;
+      }
+
+      Logger.info('💾 Transcripción guardada en Supabase');
+      return true;
+
+    } catch (error) {
+      Logger.error('Error en saveAudioTranscription:', error);
+      return false;
+    }
+  }
 }
 
+// Exponer cliente Supabase para acceso directo (supabaseService.supabase)
+SupabaseService.prototype.supabase = SupabaseService.prototype.client;
+
 module.exports = new SupabaseService();
+
 
