@@ -84,16 +84,28 @@ router.post('/', async (req, res) => {
 
         Logger.info('✅ Audio transcrito', { preview: mensaje.substring(0, 100) });
         
-        // Guardar transcripción
-        await supabaseService.supabase
-          .from('sracademy_audio_transcriptions')
-          .insert({
-            subscriber_id,
-            audio_url: last_input_text,
-            transcription: mensaje,
-            duracion_segundos: transcription.duration,
-            idioma: 'es'
-          });
+// Guardar transcripción
+try {
+  const { error } = await supabaseService.supabase
+    .from('sracademy_audio_transcriptions')
+    .insert({
+      subscriber_id: subscriber_id,
+      audio_url: last_input_text,
+      transcription: mensaje,
+      duracion_segundos: transcription.duration || null,
+      idioma: 'es',
+      created_at: new Date().toISOString()
+    });
+
+  if (error) {
+    Logger.warn('⚠️ Error guardando transcripción:', error);
+  } else {
+    Logger.info('💾 Transcripción guardada en Supabase');
+  }
+} catch (saveError) {
+  Logger.warn('⚠️ No se pudo guardar transcripción:', saveError.message);
+  // Continuar - lo importante es que se transcribió
+}
 
       } catch (error) {
         Logger.error('❌ Error transcribiendo audio:', error);
