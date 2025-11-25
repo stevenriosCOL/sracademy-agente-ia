@@ -29,72 +29,78 @@ class ManyChatService {
   /**
    * Enviar mensaje al usuario vía WhatsApp (ManyChat)
    */
-  async sendMessage(subscriberId, text) {
-    try {
-      if (!this.token) {
-        Logger.warn('⚠️ No se puede enviar mensaje: falta MANYCHAT_API_KEY');
-        return { success: false, error: 'API key no configurada' };
-      }
-
-      Logger.info('📤 Enviando a ManyChat', { 
-        subscriberId, 
-        textLength: text.length 
-      });
-
-      // ✅ CLAVE: Agregar type: 'whatsapp'
-      const payload = {
-        subscriber_id: subscriberId,
-        data: {
-          version: 'v2',
-          content: {
-            type: 'whatsapp',  // ← ESTO ES CRÍTICO
-            messages: [
-              {
-                type: 'text',
-                text: text
-              }
-            ]
-          }
-        },
-        message_tag: 'ACCOUNT_UPDATE'
-      };
-
-      const response = await this.axiosInstance.post('', payload);
-
-      Logger.info('📥 Respuesta de ManyChat', {
-        status: response.status,
-        data: response.data
-      });
-
-      if (response.status === 200 && response.data?.status === 'success') {
-        Logger.info('✅ Mensaje enviado correctamente a ManyChat', { subscriberId });
-        return { success: true, data: response.data };
-      }
-
-      Logger.error('❌ Respuesta inesperada de ManyChat', {
-        status: response.status,
-        data: response.data
-      });
-
-      return {
-        success: false,
-        error: 'Respuesta inesperada de ManyChat'
-      };
-
-    } catch (error) {
-      Logger.error('❌ Error enviando a ManyChat:', {
-        subscriberId,
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
-
-      return {
-        success: false,
-        error: error.response?.data || error.message
-      };
+async sendMessage(subscriberId, text) {
+  try {
+    if (!this.token) {
+      Logger.warn('⚠️ No se puede enviar mensaje: falta MANYCHAT_API_KEY');
+      return { success: false, error: 'API key no configurada' };
     }
+
+    Logger.info('📤 Enviando a ManyChat', { 
+      subscriberId, 
+      textLength: text.length 
+    });
+
+    const payload = {
+      subscriber_id: subscriberId,
+      data: {
+        version: 'v2',
+        content: {
+          type: 'whatsapp',
+          messages: [
+            {
+              type: 'text',
+              text: text
+            }
+          ]
+        }
+      },
+      message_tag: 'ACCOUNT_UPDATE'
+    };
+
+    // ✅ CAMBIO: Usar axios directo con URL completa
+    const response = await axios.post(this.apiUrl, payload, {
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    });
+
+    Logger.info('📥 Respuesta de ManyChat', {
+      status: response.status,
+      data: response.data
+    });
+
+    if (response.status === 200 && response.data?.status === 'success') {
+      Logger.info('✅ Mensaje enviado correctamente a ManyChat', { subscriberId });
+      return { success: true, data: response.data };
+    }
+
+    Logger.error('❌ Respuesta inesperada de ManyChat', {
+      status: response.status,
+      data: response.data
+    });
+
+    return {
+      success: false,
+      error: 'Respuesta inesperada de ManyChat'
+    };
+
+  } catch (error) {
+    Logger.error('❌ Error enviando a ManyChat:', {
+      subscriberId,
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+
+    return {
+      success: false,
+      error: error.response?.data || error.message
+    };
   }
+}
 
   /**
    * Notificar a admin sobre escalamiento o evento importante
