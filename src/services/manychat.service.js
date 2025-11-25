@@ -1,45 +1,47 @@
-// src/services/manychat.service.js
 const axios = require('axios');
 const config = require('../config/env.config');
 const Logger = require('../utils/logger.util');
 
 class ManyChatService {
   constructor() {
-    this.apiUrl = config.MANYCHAT_API_URL || 'https://api.manychat.com/fb/sending/sendContent';
+    // API correcta para WhatsApp
+    this.apiUrl = 'https://api.manychat.com/fb/sending/sendContent';
     this.token = config.MANYCHAT_API_KEY;
+    this.adminId = config.ADMIN_SUBSCRIBER_ID;
 
     if (!this.token) {
-      Logger.warn('⚠️ MANYCHAT_API_KEY no está configurado. No se podrán enviar mensajes a ManyChat.');
+      Logger.warn('⚠️ MANYCHAT_API_KEY no está configurado.');
     }
 
-    this.axiosInstance = axios.create({
-      baseURL: this.apiUrl,
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
+    if (!this.adminId) {
+      Logger.warn('⚠️ ADMIN_SUBSCRIBER_ID no está configurado. No se enviarán notificaciones.');
+    }
   }
 
   /**
-   * Enviar mensaje al usuario vía WhatsApp (ManyChat)
+   * Enviar mensaje a WhatsApp via ManyChat API
    */
   async sendMessage(subscriberId, text) {
     try {
-      Logger.info('📤 Enviando a ManyChat', { subscriberId, textLength: text.length });
+      if (!this.token) {
+        Logger.warn('⚠️ No se puede enviar mensaje: falta MANYCHAT_API_KEY');
+        return { success: false, error: 'API key no configurada' };
+      }
 
-      // 👇 Misma estructura que en el proyecto viejo (type: 'whatsapp')
+      Logger.info('📤 Enviando mensaje vía ManyChat', { 
+        subscriberId, 
+        textLength: text.length 
+      });
+
       const payload = {
         subscriber_id: subscriberId,
         data: {
           version: 'v2',
           content: {
-            type: 'whatsapp',
             messages: [
               {
                 type: 'text',
-                text
+                text: text
               }
             ]
           }
@@ -47,34 +49,26 @@ class ManyChatService {
         message_tag: 'ACCOUNT_UPDATE'
       };
 
-      const response = await this.axiosInstance.post('', payload);
-
-      Logger.info('📥 Respuesta de ManyChat', {
-        status: response.status,
-        data: response.data
+      const response = await axios.post(this.apiUrl, payload, {
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
       });
 
-      if (response.status === 200 && response.data?.status === 'success') {
-        Logger.info('✅ Mensaje enviado correctamente a ManyChat', { subscriberId });
-        return { success: true, data: response.data };
-      }
-
-      Logger.error('❌ Respuesta inesperada de ManyChat', {
+      Logger.info('✅ Mensaje enviado a ManyChat', {
         status: response.status,
-        data: response.data
+        subscriberId
       });
 
-      return {
-        success: false,
-        error: 'Respuesta inesperada de ManyChat'
-      };
+      return { success: true, data: response.data };
 
     } catch (error) {
-      Logger.error('❌ Error enviando a ManyChat:', {
+      Logger.error('❌ Error enviando mensaje ManyChat:', {
         subscriberId,
-        message: error.message,
         status: error.response?.status,
-        data: error.response?.data
+        error: error.response?.data || error.message
       });
 
       return {
@@ -85,25 +79,29 @@ class ManyChatService {
   }
 
   /**
-   * Notificar a admin sobre escalamiento o evento importante
+   * Notificar al admin sobre evento importante
    */
   async notifyAdmin(escalationData) {
     try {
+      if (!this.adminId) {
+        Logger.warn('⚠️ No se puede notificar: ADMIN_SUBSCRIBER_ID no configurado');
+        return { success: false, error: 'Admin ID no configurado' };
+      }
+
       const { subscriberId, nombre, mensaje, timestamp } = escalationData;
 
-      const adminMessage = `🚨 *NOTIFICACIÓN SENSORA AI*
+      const adminMessage = `🚨 *NOTIFICACIÓN SR ACADEMY*
 
 *Cliente:* ${nombre}
 *ID:* ${subscriberId}
 *Mensaje:* "${mensaje}"
-*Fecha:* ${timestamp}
 
-Requiere atención humana.`;
+Requiere atención.`;
 
-      const result = await this.sendMessage(config.ADMIN_SUBSCRIBER_ID, adminMessage);
+      const result = await this.sendMessage(this.adminId, adminMessage);
 
       if (result.success) {
-        Logger.info('✅ Admin notificado', { subscriberId });
+        Logger.info('✅ Admin notificado correctamente', { subscriberId });
       } else {
         Logger.error('❌ Error notificando admin', {
           subscriberId,
@@ -114,7 +112,7 @@ Requiere atención humana.`;
       return result;
 
     } catch (error) {
-      Logger.error('Error en notifyAdmin:', error);
+      Logger.error('❌ Error en notifyAdmin:', error);
       return { success: false, error: error.message };
     }
   }
