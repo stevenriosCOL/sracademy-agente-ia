@@ -9,7 +9,7 @@ const { detectLanguage } = require('../utils/language.util');
 const Logger = require('../utils/logger.util');
 
 // ✅ Whisper service (debe estar)
-// const whisperService = require('../services/whisper.service');
+const whisperService = require('../services/whisper.service');
 
 // Links de SR Academy
 const LINKS = {
@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
     // ═══════════════════════════════════════════════════════════════
     // DETECTAR SI ES AUDIO (URL en last_input_text)
     // ═══════════════════════════════════════════════════════════════
-    /*
+    
     const esAudio = mensaje && (
       mensaje.includes('.ogg') || 
       mensaje.includes('.mp3') || 
@@ -102,7 +102,7 @@ router.post('/', async (req, res) => {
         });
       }
     }
-*/
+
 
     // Validar mensaje
     if (!mensaje || mensaje.trim().length === 0) {
