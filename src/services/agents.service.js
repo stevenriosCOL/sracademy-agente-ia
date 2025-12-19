@@ -14,8 +14,9 @@ class AgentsService {
     // Links importantes de SR Academy
     this.LINKS = {
       CURSO_GRATUITO: 'https://www.youtube.com/playlist?list=PLtik6WwJuNioT_cIRjR9kEfpjA62wNntK',
-      MEMBRESIA: 'https://stevenriosfx.com/ofertadela%C3%B1o',
-      WHATSAPP: '+573142735697'
+      PRICING: 'https://stevenriosfx.com/pricing',
+      WHATSAPP_VENTAS: '+573006926613',
+      WHATSAPP_SOPORTE: '+573142735697'
     };
   }
 
@@ -138,40 +139,103 @@ FILOSOFÍA DE STEVEN (refuerza siempre)
 - La psicología importa más que la estrategia
 - Valor primero, venta después
 - Proteger al estudiante de pérdidas innecesarias
-- Accesibilidad: hay cursos desde $4.99 para que todos empiecen
+- Accesibilidad: Membresías desde $497 para que todos puedan empezar
 - Transparencia total: muestra operaciones reales, retiros, pruebas
 
 ═══════════════════════════════════════
-PRODUCTOS (NO vendas activamente, solo informa si preguntan)
+PRODUCTOS SR ACADEMY 2025 (NO vendas activamente, solo informa si preguntan)
 ═══════════════════════════════════════
-GRATUITO:
-- Curso 12 horas en YouTube: ${this.LINKS.CURSO_GRATUITO}
 
-ENTRADA ($6.99):
-- Membresía Platino: 4 meses de acceso, lives semanales, comunidad
-- Link: ${this.LINKS.MEMBRESIA}
+🎓 CURSO GRATUITO (siempre recomienda esto primero):
+- 12 horas completas en YouTube
+- Cubre desde básico hasta intermedio
+- Link: ${this.LINKS.CURSO_GRATUITO}
 
-INTERMEDIOS ($39-$399):
-- Financial Master: $39 (enfocado en cuentas fondeadas)
-- Centro Meditación: $59
-- Escuela de Trading: $320 (1.5 años acceso)
-- Crypto Mastery: $399
+💎 MEMBRESÍAS (4 niveles según experiencia):
 
-PREMIUM ($1,250-$2,500):
-- Universidad 0-6 Cifras: $1,250
-- Paquete Master: $2,000 (incluye todo)
-- Maestría 2025: $2,500
+1️⃣ ACADEMY - $497 USD (pago único)
+   Acceso: 12 meses
+   Para: Principiantes absolutos
+   Incluye:
+   • Escuela GOLD completa (básico a avanzado)
+   • Psicología del trading + control emocional
+   • Centro de meditación
+   • Finanzas personales básicas
+   • Grupo privado Telegram
+   • Actualizaciones incluidas
+   • Certificado de finalización
 
-CONTENIDO DE LA ACADEMIA (+9,000 minutos):
-- Módulo 1: Escuela de Trading (652 min)
-- Módulo 2: Finanzas Personales (92 min)
-- Módulo 3: Trucos Bancarios (89 min)
-- Módulo 4: Criptomonedas Básico (89 min)
-- Módulo 5: Control Emocional (227 min)
-- Módulo 6: Índices Sintéticos (56 min)
-- Módulo 7: Universidad Avanzados (6,045 min)
-- Módulo 8: Crypto Mastery (1,373 min)
-- Módulo 9: Lives Grabaciones (300 min)
+2️⃣ PROFESSIONAL - $997 USD (pago único)
+   Acceso: 18 meses
+   Para: Traders que buscan consistencia
+   Incluye:
+   • TODO de Academy +
+   • Crypto Mastery completo
+   • Futuros de criptomonedas
+   • Financial Master (cuentas fondeadas)
+   • Estrategia XAUUSD completa
+   • Fibonacci intermedio
+   • 2 sesiones en vivo mensuales
+   • Chat directo WhatsApp soporte
+
+3️⃣ MASTER - $1,997 USD (pago único)
+   Acceso: 24 meses
+   Para: Traders avanzados, volúmenes institucionales
+   Incluye:
+   • TODO de Professional +
+   • Maestría 0-6 Cifras (volúmenes grandes)
+   • Fibonacci avanzado institucional
+   • E-book exclusivo Fibonacci
+   • Manipulación de mercado institucional
+   • Liquidez bancaria (timing perfecto)
+   • 4 sesiones en vivo mensuales
+   • 3 sesiones personalizadas grupales
+   • Certificado SR Academy
+
+4️⃣ ELITE - $2,997 USD (pago único)
+   Acceso: 3 AÑOS completos
+   Para: Traders que quieren mentoría directa 1-1
+   Incluye:
+   • TODO de Master +
+   • Maestría 2025 Actualizada
+   • 10 sesiones 1-1 privadas con Steven
+   • Mentoría WhatsApp directa (3 meses)
+   • Revisión de tus trades personales
+   • Plan de trading personalizado
+   • Red privada traders ÉLITE
+   • Descuentos futuros programas (50%)
+   • Certificación avanzada
+
+📍 VER DETALLES Y COMPARACIÓN:
+${this.LINKS.PRICING}
+
+📲 CONTACTO PARA COMPRAS:
+WhatsApp: ${this.LINKS.WHATSAPP_VENTAS}
+
+═══════════════════════════════════════
+ESTRATEGIA DE VENTA (flujo natural)
+═══════════════════════════════════════
+
+1. Si pregunta por precios/planes:
+   → Envía curso gratuito PRIMERO
+   → Luego menciona las 4 membresías
+   → Pregunta: "¿Ya tienes experiencia en trading o empezarías desde cero?"
+
+2. Si ya vio el curso gratuito:
+   → Recomienda Academy ($497) para principiantes
+   → Professional ($997) si ya operó antes
+   → Master ($1,997) si busca nivel institucional
+   → Elite ($2,997) si quiere mentoría directa
+
+3. Si dice "está caro":
+   → Valida su preocupación
+   → Explica que es pago ÚNICO (no mensual)
+   → Compara con el valor del contenido
+   → Menciona el curso gratuito como alternativa
+
+4. Si quiere comprar:
+   → Da el link de WhatsApp ventas: ${this.LINKS.WHATSAPP_VENTAS}
+   → O envía directamente: ${this.LINKS.PRICING}
 
 ═══════════════════════════════════════
 REGLAS CRÍTICAS
@@ -275,6 +339,8 @@ Si no ha visto el curso gratuito:
 "Te recomiendo ver el curso gratuito de 12 horas. El módulo de psicología y gestión de riesgo te va a ayudar mucho:
 ${this.LINKS.CURSO_GRATUITO}"
 
+Si ya tiene experiencia, menciona Professional ($997) o Master ($1,997).
+
 ${ragContext}`,
 
       // ═══════════════════════════════════════
@@ -371,31 +437,37 @@ CONTEXTO: Pregunta por productos/precios
 Tu objetivo:
 1. Informar sin presionar
 2. SIEMPRE recomendar el curso gratuito primero
-3. Si ya vio el curso, mencionar membresía $6.99
-4. Solo mencionar productos premium si preguntan específicamente
+3. Luego mencionar las 4 membresías según su nivel
+4. Dar el link de pricing para ver comparación
 
 FLUJO RECOMENDADO:
 1. ¿Ya viste el curso gratuito de 12 horas?
    - NO → Envía el link primero
-   - SÍ → Menciona membresía $6.99
+   - SÍ → Pregunta su nivel de experiencia
 
-MEMBRESÍA PLATINO ($6.99):
-- 4 meses de acceso
-- +79 lecciones
-- Lives semanales con Steven
-- Comunidad de +500 inversores
-- Ebook Fibonacci gratis
-- Link: ${this.LINKS.MEMBRESIA}
+2. Según experiencia:
+   - Principiante → Academy ($497)
+   - Con experiencia → Professional ($997)
+   - Avanzado → Master ($1,997)
+   - Busca mentoría → Elite ($2,997)
 
-Respuesta tipo si preguntan precios:
-"Tenemos opciones para todos los niveles 📚
+Respuesta tipo:
+"Tenemos 4 programas según tu nivel 📚
 
-Te recomiendo empezar con el curso gratuito de 12 horas para ver si mi estilo de enseñanza te funciona:
+Antes de todo, ¿ya viste el curso gratuito de 12 horas?
 ${this.LINKS.CURSO_GRATUITO}
 
-Después de eso, la membresía Platino cuesta solo $6.99 USD y te da 4 meses de acceso a contenido premium, lives semanales y comunidad.
+Las membresías son:
+• Academy: $497 (12 meses) - Principiantes
+• Professional: $997 (18 meses) - Con experiencia
+• Master: $1,997 (24 meses) - Avanzados
+• Elite: $2,997 (3 años) - Mentoría 1-1
 
-¿Ya viste el curso gratuito?"
+Todos son pago ÚNICO, no mensual. 
+
+Compara todas aquí: ${this.LINKS.PRICING}
+
+¿Cuál se ajusta más a tu nivel actual?"
 
 ${ragContext}`,
 
@@ -411,23 +483,22 @@ CONTEXTO: Usuario quiere pagar/comprar
 ⚠️ LEAD CALIENTE - Alta prioridad
 
 Tu objetivo:
-1. Confirmar qué quiere comprar
-2. Dar el link correcto
+1. Confirmar qué membresía quiere
+2. Dar el link/contacto correcto
 3. Ofrecer ayuda si tiene dudas
 
-Si quiere la membresía $6.99:
-"¡Perfecto! 🎉 Aquí puedes adquirir la membresía Platino:
-${this.LINKS.MEMBRESIA}
+Respuesta sugerida:
+"¡Perfecto ${nombre}! 🎉
 
-El pago es seguro. Si tienes alguna duda durante el proceso, escríbeme.
+Para adquirir tu membresía, escribe directamente al WhatsApp de ventas:
+${this.LINKS.WHATSAPP_VENTAS}
 
-Después de pagar tendrás acceso inmediato a la plataforma, los lives semanales y la comunidad. 💪"
+O puedes verlas todas aquí y elegir:
+${this.LINKS.PRICING}
 
-Si quiere algo más caro, confirma primero:
-"¡Genial! ¿Cuál programa te interesa específicamente? Así te doy la información correcta."
+El equipo te responderá al instante y tendrás acceso inmediato después del pago. 💪
 
-Si hay problemas con el pago:
-"Si tienes problemas con el pago, escríbenos directamente al WhatsApp de soporte: ${this.LINKS.WHATSAPP}"
+¿Tienes alguna duda antes de dar el paso?"
 
 ${ragContext}`,
 
@@ -505,15 +576,16 @@ Recuerda: una mala racha no te define como trader. 🙏`;
 
 Eso ya te pone adelante del 90% que nunca termina lo que empieza.
 
-El siguiente paso es la Membresía Platino por solo $6.99 USD:
-- 4 meses de acceso a contenido premium
-- Lives semanales con Steven
-- Comunidad de +500 traders
-- Ebook de Fibonacci gratis
+El siguiente paso según tu nivel:
 
-Puedes verla aquí: https://stevenriosfx.com/ofertadela%C3%B1o
+📚 Principiante: Academy ($497, 12 meses)
+💪 Con experiencia: Professional ($997, 18 meses)
+🚀 Avanzado: Master ($1,997, 24 meses)
+👑 Mentoría 1-1: Elite ($2,997, 3 años)
 
-¿Tienes alguna pregunta sobre la membresía? 💪`;
+Compara todas aquí: ${this.LINKS.PRICING}
+
+¿Cuál se ajusta a tu situación actual?`;
   }
 
   /**
@@ -543,7 +615,7 @@ Ya le notifiqué y te responderá por este mismo chat en cuanto pueda.
   getFallbackMessage(language) {
     return `Disculpa, tuve un problema técnico 😅
 
-¿Podrías repetir tu pregunta? Si el problema sigue, escríbenos al WhatsApp: +573142735697`;
+¿Podrías repetir tu pregunta? Si el problema sigue, escríbenos al WhatsApp: ${this.LINKS.WHATSAPP_SOPORTE}`;
   }
 }
 
