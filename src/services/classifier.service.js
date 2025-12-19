@@ -148,9 +148,11 @@ PREGUNTA_PSICOLOGIA:
 - Frases: "cómo controlo el miedo", "me cuesta la disciplina", "opero por impulso"
 
 INFO_PRODUCTOS:
-- Pregunta por precios, membresía, cursos pagados, academia
+- Pregunta por precios, membresías, cursos pagados, academia
 - Quiere saber costos, qué incluye, cómo pagar
-- Frases: "cuánto cuesta", "qué incluye la membresía", "tienen cursos"
+- Menciona membresías específicas: Academy, Professional, Master, Elite
+- Frases: "cuánto cuesta", "qué incluye Academy", "diferencia entre Professional y Master"
+- ⚠️ IMPORTANTE: Si pregunta por Academy, Professional, Master o Elite específicamente → INFO_PRODUCTOS
 
 CURSO_COMPLETADO:
 - Indica que terminó el curso gratuito de 12 horas
@@ -165,7 +167,8 @@ QUEJA:
 LEAD_CALIENTE:
 - Quiere comprar o pagar YA
 - Listo para adquirir membresía o curso
-- Frases: "quiero pagar", "cómo compro", "dónde pago la membresía"
+- Frases: "quiero pagar", "cómo compro", "dónde pago", "quiero comprar Academy/Professional/Master/Elite"
+- ⚠️ Si dice "quiero comprar [membresía]" → LEAD_CALIENTE con urgencia alta
 
 SITUACION_DELICADA:
 - Menciona pérdida grande de dinero
@@ -214,7 +217,27 @@ media: Tiene interés activo, quiere respuesta pronto
 alta: Quiere comprar YA o está en crisis emocional
 
 ═══════════════════════════════════════
-REGLAS CRÍTICAS:
+REGLAS CRÍTICAS - SR ACADEMY 2025:
+═══════════════════════════════════════
+
+🔴 MEMBRESÍAS ACTUALES (detectar específicamente):
+- Academy ($497, 12 meses)
+- Professional ($997, 18 meses)
+- Master ($1,997, 24 meses)
+- Elite ($2,997, 3 años)
+
+Si el usuario menciona cualquiera de estas membresías → INFO_PRODUCTOS
+
+🔴 MEMBRESÍAS OBSOLETAS (ya NO existen):
+- Platino / Platinum
+- Gold / Silver / Diamond
+- Universidad 0-6 Cifras
+- Paquete Master (viejo)
+
+Si menciona estas, igual clasifica como INFO_PRODUCTOS pero el agente corregirá.
+
+═══════════════════════════════════════
+REGLAS DE CLASIFICACIÓN:
 ═══════════════════════════════════════
 
 1. Si menciona "perdí todo", "quemé la cuenta", "estoy desesperado" → SITUACION_DELICADA + DESPERATE + urgencia alta
@@ -223,18 +246,22 @@ REGLAS CRÍTICAS:
 
 3. Si pregunta "cuánto cuesta", "precio", "membresía", "cómo pago" → INFO_PRODUCTOS
 
-4. Si dice "quiero hablar con Steven" o "con un humano" → ESCALAMIENTO
+4. Si pregunta por membresía específica (Academy, Professional, Master, Elite) → INFO_PRODUCTOS
 
-5. Si dice "quiero pagar", "dónde pago", "lo compro" → LEAD_CALIENTE + urgencia alta
+5. Si pregunta diferencia entre membresías → INFO_PRODUCTOS
 
-6. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
+6. Si dice "quiero hablar con Steven" o "con un humano" → ESCALAMIENTO
 
-7. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
+7. Si dice "quiero pagar", "dónde pago", "lo compro", "quiero comprar [membresía]" → LEAD_CALIENTE + urgencia alta
 
-8. Preguntas sobre miedo, disciplina, emociones → PREGUNTA_PSICOLOGIA
+8. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
+
+9. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
+
+10. Preguntas sobre miedo, disciplina, emociones → PREGUNTA_PSICOLOGIA
 
 ═══════════════════════════════════════
-EJEMPLOS:
+EJEMPLOS ACTUALIZADOS 2025:
 ═══════════════════════════════════════
 
 "Hola, quiero aprender trading desde cero" →
@@ -252,6 +279,18 @@ EJEMPLOS:
 "Cuánto cuesta la membresía?" →
 {"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
+"Cuáles son los precios de las membresías?" →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
+
+"¿Qué incluye Academy?" →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "cero", "urgencia": "media"}
+
+"¿Cuál es la diferencia entre Professional y Master?" →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "intermedio", "urgencia": "media"}
+
+"¿Qué incluye la membresía Elite?" →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
+
 "LISTO, ya vi todo el curso" →
 {"intent": "CURSO_COMPLETADO", "emotion": "EXCITED", "nivel": null, "urgencia": "media"}
 
@@ -261,11 +300,17 @@ EJEMPLOS:
 "Quiero pagar la membresía, cómo hago?" →
 {"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
 
+"Quiero comprar Academy, ¿cómo lo hago?" →
+{"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": "cero", "urgencia": "alta"}
+
 "Quiero hablar con Steven directamente" →
 {"intent": "ESCALAMIENTO", "emotion": "NEUTRAL", "nivel": null, "urgencia": "media"}
 
 "Hola, buenos días" →
 {"intent": "CONVERSACION_GENERAL", "emotion": "CALM", "nivel": null, "urgencia": "baja"}
+
+"Tienen artículos sobre falsos gurús?" →
+{"intent": "PREGUNTA_TECNICA", "emotion": "CURIOUS", "nivel": null, "urgencia": "baja"}
 
 ═══════════════════════════════════════
 RECORDATORIO FINAL:
@@ -274,7 +319,9 @@ RECORDATORIO FINAL:
 - Las claves deben ser exactamente: intent, emotion, nivel, urgencia
 - Los valores de intent y emotion en MAYÚSCULAS
 - Los valores de nivel y urgencia en minúsculas
-- Si no puedes determinar nivel, usa null`;
+- Si no puedes determinar nivel, usa null
+- Si menciona Academy, Professional, Master o Elite → INFO_PRODUCTOS
+- Si quiere comprar cualquier membresía → LEAD_CALIENTE`;
   }
 }
 
