@@ -217,22 +217,26 @@ media: Tiene interés activo, quiere respuesta pronto
 alta: Quiere comprar YA o está en crisis emocional
 
 ═══════════════════════════════════════
-REGLAS CRÍTICAS - SR ACADEMY 2025:
+REGLAS CRÍTICAS - SR ACADEMY 2026:
 ═══════════════════════════════════════
 
-🔴 MEMBRESÍAS ACTUALES (detectar específicamente):
-- Academy ($497, 12 meses)
-- Professional ($997, 18 meses)
-- Master ($1,997, 24 meses)
-- Elite ($2,997, 3 años)
+🔴 MEMBRESÍAS ACTUALES 2026 (detectar específicamente):
+- Academy ($297, 12 meses)
+- Professional ($597, 18 meses)
+- Master ($997, 24 meses)
+- Elite ($1,797, 36 meses)
 
 Si el usuario menciona cualquiera de estas membresías → INFO_PRODUCTOS
 
-🔴 MEMBRESÍAS OBSOLETAS (ya NO existen):
+🔴 MEMBRESÍAS Y PRODUCTOS OBSOLETOS (ya NO existen):
 - Platino / Platinum
 - Gold / Silver / Diamond
-- Universidad 0-6 Cifras
-- Paquete Master (viejo)
+- Universidad 0-6 Cifras (producto viejo)
+- Paquete Master (nombre viejo, ahora es Master 2026)
+- Financial Master (ya no existe como producto separado)
+- Centro de Meditación (ahora incluido en base)
+- Crypto Futuros (eliminado)
+- Futuros de criptomonedas (eliminado)
 
 Si menciona estas, igual clasifica como INFO_PRODUCTOS pero el agente corregirá.
 
@@ -261,7 +265,7 @@ REGLAS DE CLASIFICACIÓN:
 10. Preguntas sobre miedo, disciplina, emociones → PREGUNTA_PSICOLOGIA
 
 ═══════════════════════════════════════
-EJEMPLOS ACTUALIZADOS 2025:
+EJEMPLOS ACTUALIZADOS 2026:
 ═══════════════════════════════════════
 
 "Hola, quiero aprender trading desde cero" →
@@ -279,7 +283,7 @@ EJEMPLOS ACTUALIZADOS 2025:
 "Cuánto cuesta la membresía?" →
 {"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
-"Cuáles son los precios de las membresías?" →
+"Cuáles son los precios de las membresías 2026?" →
 {"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
 "¿Qué incluye Academy?" →
@@ -289,6 +293,9 @@ EJEMPLOS ACTUALIZADOS 2025:
 {"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "intermedio", "urgencia": "media"}
 
 "¿Qué incluye la membresía Elite?" →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
+
+"¿Master incluye sesiones 1-1?" →
 {"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
 "LISTO, ya vi todo el curso" →
@@ -303,14 +310,17 @@ EJEMPLOS ACTUALIZADOS 2025:
 "Quiero comprar Academy, ¿cómo lo hago?" →
 {"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": "cero", "urgencia": "alta"}
 
+"Quiero comprar Elite para Prop Firms" →
+{"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": "avanzado", "urgencia": "alta"}
+
 "Quiero hablar con Steven directamente" →
 {"intent": "ESCALAMIENTO", "emotion": "NEUTRAL", "nivel": null, "urgencia": "media"}
 
 "Hola, buenos días" →
 {"intent": "CONVERSACION_GENERAL", "emotion": "CALM", "nivel": null, "urgencia": "baja"}
 
-"Tienen artículos sobre falsos gurús?" →
-{"intent": "PREGUNTA_TECNICA", "emotion": "CURIOUS", "nivel": null, "urgencia": "baja"}
+"¿Tienen contenido sobre Prop Firms?" →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "avanzado", "urgencia": "media"}
 
 ═══════════════════════════════════════
 RECORDATORIO FINAL:
@@ -321,7 +331,8 @@ RECORDATORIO FINAL:
 - Los valores de nivel y urgencia en minúsculas
 - Si no puedes determinar nivel, usa null
 - Si menciona Academy, Professional, Master o Elite → INFO_PRODUCTOS
-- Si quiere comprar cualquier membresía → LEAD_CALIENTE`;
+- Si quiere comprar cualquier membresía → LEAD_CALIENTE
+- Precios 2026: $297, $597, $997, $1,797`;
   }
 }
 
