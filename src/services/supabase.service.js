@@ -386,11 +386,328 @@ class SupabaseService {
       return false;
     }
   }
+
+  // ═══════════════════════════════════════
+  // LIBRO 30 DÍAS - TRACKING
+  // ═══════════════════════════════════════
+
+  async updateLibroStatus(subscriberId, updates) {
+    try {
+      const { error } = await this.client
+        .from('sracademy_leads')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('subscriber_id', subscriberId);
+
+      if (error) {
+        Logger.error('Error actualizando status libro:', error);
+        return false;
+      }
+
+      Logger.info('✅ Libro status actualizado', { subscriber_id: subscriberId, updates });
+      return true;
+    } catch (error) {
+      Logger.error('Error en updateLibroStatus:', error);
+      return false;
+    }
+  }
+
+  async markLibroInteresado(subscriberId) {
+    return this.updateLibroStatus(subscriberId, {
+      libro_interesado: true,
+      libro_ultimo_contacto: new Date().toISOString()
+    });
+  }
+
+  async markLibroClickCompra(subscriberId) {
+    return this.updateLibroStatus(subscriberId, {
+      libro_click_compra: new Date().toISOString(),
+      libro_ultimo_contacto: new Date().toISOString()
+    });
+  }
+
+  async markLibroComprador(subscriberId, diaActual = 1) {
+    return this.updateLibroStatus(subscriberId, {
+      libro_comprador: true,
+      libro_fecha_compra: new Date().toISOString(),
+      libro_dia_actual: diaActual,
+      libro_ultimo_contacto: new Date().toISOString()
+    });
+  }
+
+  async saveLibroObjecion(subscriberId, objecion) {
+    return this.updateLibroStatus(subscriberId, {
+      libro_objecion: objecion,
+      libro_ultimo_contacto: new Date().toISOString()
+    });
+  }
+
+  async updateLibroDiaActual(subscriberId, dia) {
+    return this.updateLibroStatus(subscriberId, {
+      libro_dia_actual: dia,
+      libro_ultimo_contacto: new Date().toISOString()
+    });
+  }
+
+  // ═══════════════════════════════════════
+  // LIBRO - COMPRAS Y VERIFICACIÓN
+  // ═══════════════════════════════════════
+
+  async createCompraLibro(data) {
+    try {
+      const { data: result, error } = await this.client
+        .from('libro_compras')
+        .insert({
+          subscriber_id: data.subscriber_id,
+          nombre_completo: data.nombre_completo,
+          email: data.email,
+          celular: data.celular,
+          pais: data.pais,
+          metodo_pago: data.metodo_pago,
+          monto_usd: data.monto_usd || 19.99,
+          estado: 'pendiente',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Error creando compra libro:', error);
+        return null;
+      }
+
+      Logger.info('✅ Compra libro creada', {
+        subscriber_id: data.subscriber_id,
+        compra_id: result.id
+      });
+
+      return result;
+    } catch (error) {
+      Logger.error('Error en createCompraLibro:', error);
+      return null;
+    }
+  }
+
+  async getCompraPendiente(subscriberId) {
+    try {
+      const { data, error } = await this.client
+        .from('libro_compras')
+        .select('*')
+        .eq('subscriber_id', subscriberId)
+        .in('estado', ['pendiente', 'verificando'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        Logger.error('Error obteniendo compra pendiente:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      Logger.error('Error en getCompraPendiente:', error);
+      return null;
+    }
+  }
+
+  async updateCompraComprobante(compraId, comprobanteUrl) {
+    try {
+      const { error } = await this.client
+        .from('libro_compras')
+        .update({
+          comprobante_url: comprobanteUrl,
+          estado: 'verificando',
+          fecha_pago: new Date().toISOString()
+        })
+        .eq('id', compraId);
+
+      if (error) {
+        Logger.error('Error actualizando comprobante:', error);
+        return false;
+      }
+
+      Logger.info('✅ Comprobante guardado', { compra_id: compraId });
+      return true;
+    } catch (error) {
+      Logger.error('Error en updateCompraComprobante:', error);
+      return false;
+    }
+  }
+
+  async aprobarCompraLibro(compraId) {
+    try {
+      const { error } = await this.client
+        .from('libro_compras')
+        .update({
+          estado: 'aprobado',
+          fecha_verificacion: new Date().toISOString(),
+          verificado_por: 'steven',
+          pdf_enviado: false,
+          accesos_enviados: false
+        })
+        .eq('id', compraId);
+
+      if (error) {
+        Logger.error('Error aprobando compra:', error);
+        return false;
+      }
+
+      Logger.info('✅ Compra libro aprobada', { compra_id: compraId });
+      return true;
+    } catch (error) {
+      Logger.error('Error en aprobarCompraLibro:', error);
+      return false;
+    }
+  }
+
+  async rechazarCompraLibro(compraId, motivo) {
+    try {
+      const { error } = await this.client
+        .from('libro_compras')
+        .update({
+          estado: 'rechazado',
+          fecha_verificacion: new Date().toISOString(),
+          verificado_por: 'steven',
+          notas: motivo
+        })
+        .eq('id', compraId);
+
+      if (error) {
+        Logger.error('Error rechazando compra:', error);
+        return false;
+      }
+
+      Logger.info('⚠️ Compra libro rechazada', { compra_id: compraId, motivo });
+      return true;
+    } catch (error) {
+      Logger.error('Error en rechazarCompraLibro:', error);
+      return false;
+    }
+  }
+
+  async marcarPDFEnviado(compraId) {
+    try {
+      const { error } = await this.client
+        .from('libro_compras')
+        .update({
+          pdf_enviado: true
+        })
+        .eq('id', compraId);
+
+      if (error) {
+        Logger.error('Error marcando PDF enviado:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      Logger.error('Error en marcarPDFEnviado:', error);
+      return false;
+    }
+  }
+
+  async marcarAccesosEnviados(compraId) {
+    try {
+      const { error } = await this.client
+        .from('libro_compras')
+        .update({
+          accesos_enviados: true
+        })
+        .eq('id', compraId);
+
+      if (error) {
+        Logger.error('Error marcando accesos enviados:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      Logger.error('Error en marcarAccesosEnviados:', error);
+      return false;
+    }
+  }
+
+  async getComprasLibroPendientes() {
+    try {
+      const { data, error } = await this.client
+        .from('libro_compras')
+        .select('*')
+        .in('estado', ['pendiente', 'verificando'])
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        Logger.error('Error obteniendo compras pendientes:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      Logger.error('Error en getComprasLibroPendientes:', error);
+      return [];
+    }
+  }
+
+  async getComprasLibroAprobadas(limit = 50) {
+    try {
+      const { data, error } = await this.client
+        .from('libro_compras')
+        .select('*')
+        .eq('estado', 'aprobado')
+        .order('fecha_verificacion', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        Logger.error('Error obteniendo compras aprobadas:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      Logger.error('Error en getComprasLibroAprobadas:', error);
+      return [];
+    }
+  }
+
+  async getStatsComprasLibro() {
+    try {
+      const { data, error } = await this.client
+        .from('libro_compras')
+        .select('estado, metodo_pago');
+
+      if (error) {
+        Logger.error('Error obteniendo stats compras:', error);
+        return null;
+      }
+
+      const stats = {
+        total: data.length,
+        pendientes: data.filter(c => c.estado === 'pendiente').length,
+        verificando: data.filter(c => c.estado === 'verificando').length,
+        aprobadas: data.filter(c => c.estado === 'aprobado').length,
+        rechazadas: data.filter(c => c.estado === 'rechazado').length,
+        por_metodo: {}
+      };
+
+      data.forEach(compra => {
+        const metodo = compra.metodo_pago;
+        stats.por_metodo[metodo] = (stats.por_metodo[metodo] || 0) + 1;
+      });
+
+      return stats;
+    } catch (error) {
+      Logger.error('Error en getStatsComprasLibro:', error);
+      return null;
+    }
+  }
 }
 
 // Exponer cliente Supabase para acceso directo (supabaseService.supabase)
 SupabaseService.prototype.supabase = SupabaseService.prototype.client;
 
 module.exports = new SupabaseService();
+
 
 

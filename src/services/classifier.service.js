@@ -13,7 +13,7 @@ class ClassifierService {
    * Clasifica el mensaje del usuario para SR Academy
    * - intent: APRENDER_CERO, MEJORAR, PREGUNTA_TECNICA, PREGUNTA_PSICOLOGIA, 
    *           INFO_PRODUCTOS, CURSO_COMPLETADO, QUEJA, LEAD_CALIENTE, 
-   *           SITUACION_DELICADA, ESCALAMIENTO, CONVERSACION_GENERAL
+   *           SITUACION_DELICADA, ESCALAMIENTO, CONVERSACION_GENERAL, LIBRO_30_DIAS
    * - emotion: CALM, CURIOUS, FRUSTRATED, DESPERATE, EXCITED, SKEPTICAL, ANGRY, CONFUSED
    * - nivel: cero, intermedio, avanzado, null
    * - urgencia: baja, media, alta
@@ -48,7 +48,7 @@ class ClassifierService {
         const validIntents = [
           'APRENDER_CERO', 'MEJORAR', 'PREGUNTA_TECNICA', 'PREGUNTA_PSICOLOGIA',
           'INFO_PRODUCTOS', 'CURSO_COMPLETADO', 'QUEJA', 'LEAD_CALIENTE',
-          'SITUACION_DELICADA', 'ESCALAMIENTO', 'CONVERSACION_GENERAL'
+          'SITUACION_DELICADA', 'ESCALAMIENTO', 'CONVERSACION_GENERAL', 'LIBRO_30_DIAS', 'COMPRA_LIBRO_PROCESO'
         ];
         
         const validEmotions = [
@@ -127,6 +127,25 @@ SIN texto extra, SIN explicaciones. Solo el JSON.
 INTENCIONES POSIBLES (intent):
 ═══════════════════════════════════════
 
+LIBRO_30_DIAS: ⭐ NUEVO PRODUCTO 2026
+- Usuario menciona el libro "30 días para dejar de ser tu peor enemigo"
+- Pregunta por el PDF, libro, o programa de 30 días
+- Menciona problemas psicológicos específicos del libro:
+  * Ansiedad en trading
+  * Miedo a operar
+  * Impulsos/Revenge trading
+  * Auto-sabotaje
+  * Falta de disciplina
+  * "No soy consistente"
+  * "Pierdo por emociones"
+  * "Me saboteo"
+  * Overtrading
+  * Ejercicios mentales
+  * Ejercicios diarios
+  * Sistema de 30 días
+- Frases: "quiero el libro", "el PDF", "30 días", "peor enemigo", "mentalidad", "disciplina mental"
+- ⚠️ PRIORIDAD ALTA: Si menciona "libro", "pdf", "30 días" → LIBRO_30_DIAS
+
 APRENDER_CERO:
 - Quiere empezar en trading desde cero
 - No sabe nada, es principiante total
@@ -146,6 +165,7 @@ PREGUNTA_PSICOLOGIA:
 - Pregunta sobre emociones, miedo, disciplina, mentalidad
 - Control emocional, FOMO, ego, paciencia
 - Frases: "cómo controlo el miedo", "me cuesta la disciplina", "opero por impulso"
+- ⚠️ NOTA: Si menciona "libro" o "30 días" en contexto de psicología → LIBRO_30_DIAS
 
 INFO_PRODUCTOS:
 - Pregunta por precios, membresías, cursos pagados, academia
@@ -161,14 +181,28 @@ CURSO_COMPLETADO:
 
 QUEJA:
 - Frustración con el servicio o contenido
+- ⚠️ NOTA: Si la queja es específicamente sobre el precio del libro → LIBRO_30_DIAS (no QUEJA)
 - Reclamo, insatisfacción
 - Frases: "esto no sirve", "me siento estafado", "no me ayudó"
 
 LEAD_CALIENTE:
 - Quiere comprar o pagar YA
-- Listo para adquirir membresía o curso
+- Listo para adquirir membresía, curso o libro
 - Frases: "quiero pagar", "cómo compro", "dónde pago", "quiero comprar Academy/Professional/Master/Elite"
+- "quiero adquirir el libro" → LEAD_CALIENTE + urgencia alta
 - ⚠️ Si dice "quiero comprar [membresía]" → LEAD_CALIENTE con urgencia alta
+
+COMPRA_LIBRO_PROCESO:
+- Usuario está en medio del proceso de compra del libro
+- Menciona método de pago, país, o envía datos
+- Frases: 
+  * "Mercado Pago", "mercadopago", "tarjeta", "PSE"
+  * "Llave BRE B", "BRE B", "llave", "transferencia instantánea"
+  * "Bancolombia", "banco", "transferencia bancaria"
+  * "Criptomonedas", "cripto", "USDT", "bitcoin"
+  * "desde Colombia", "desde México", "soy de Argentina"
+  * País: "Colombia", "México", "Argentina", "Chile", etc
+- ⚠️ Este intent es para cuando YA decidió comprar y está dando info
 
 SITUACION_DELICADA:
 - Menciona pérdida grande de dinero
@@ -220,7 +254,15 @@ alta: Quiere comprar YA o está en crisis emocional
 REGLAS CRÍTICAS - SR ACADEMY 2026:
 ═══════════════════════════════════════
 
-🔴 MEMBRESÍAS ACTUALES 2026 (detectar específicamente):
+🔴 PRODUCTOS ACTUALES 2026:
+
+LIBRO (NUEVO 2026):
+- "30 días para dejar de ser tu peor enemigo en el trading"
+- Precio lanzamiento: $19.99 (regular: $29.99)
+- PDF + 12h curso + WhatsApp estudiantes
+- Si menciona "libro", "pdf", "30 días" → LIBRO_30_DIAS
+
+MEMBRESÍAS 2026:
 - Academy ($297, 12 meses)
 - Professional ($597, 18 meses)
 - Master ($997, 24 meses)
@@ -252,17 +294,26 @@ REGLAS DE CLASIFICACIÓN:
 
 4. Si pregunta por membresía específica (Academy, Professional, Master, Elite) → INFO_PRODUCTOS
 
-5. Si pregunta diferencia entre membresías → INFO_PRODUCTOS
+5. Si menciona "libro", "PDF", "30 días", "peor enemigo" → LIBRO_30_DIAS
 
-6. Si dice "quiero hablar con Steven" o "con un humano" → ESCALAMIENTO
+6. Si pregunta diferencia entre membresías → INFO_PRODUCTOS
 
-7. Si dice "quiero pagar", "dónde pago", "lo compro", "quiero comprar [membresía]" → LEAD_CALIENTE + urgencia alta
+7. Si dice "quiero hablar con Steven" o "con un humano" → ESCALAMIENTO
 
-8. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
+8. Si dice "quiero pagar", "dónde pago", "lo compro", "quiero comprar [membresía]" → LEAD_CALIENTE + urgencia alta
 
-9. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
+9. Si dice "quiero adquirir el libro" → LEAD_CALIENTE + urgencia alta
 
-10. Preguntas sobre miedo, disciplina, emociones → PREGUNTA_PSICOLOGIA
+10. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
+
+11. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
+
+12. Preguntas sobre miedo, disciplina, emociones SIN mencionar "libro" → PREGUNTA_PSICOLOGIA
+
+13. Si menciona problemas de disciplina/ansiedad/auto-sabotaje + "libro"/"30 días" → LIBRO_30_DIAS
+
+14. Si menciona "compré el libro" o "voy en el día X" → LIBRO_30_DIAS (no CURSO_COMPLETADO)
+
 
 ═══════════════════════════════════════
 EJEMPLOS ACTUALIZADOS 2026:
@@ -280,6 +331,21 @@ EJEMPLOS ACTUALIZADOS 2026:
 "No puedo controlar mis emociones cuando opero" →
 {"intent": "PREGUNTA_PSICOLOGIA", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
 
+"Quiero el libro de 30 días" →
+{"intent": "LIBRO_30_DIAS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
+
+"Tengo mucha ansiedad al operar, ¿el libro me ayuda?" →
+{"intent": "LIBRO_30_DIAS", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
+
+"Hola Steven, quiero adquirir el libro 30 días para dejar de ser tu peor enemigo en el trading por $19.99" →
+{"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
+
+"Me saboteo mucho, pierdo por impulsos" →
+{"intent": "LIBRO_30_DIAS", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
+
+"No tengo tiempo para hacer ejercicios diarios" →
+{"intent": "LIBRO_30_DIAS", "emotion": "SKEPTICAL", "nivel": null, "urgencia": "baja"}
+
 "Cuánto cuesta la membresía?" →
 {"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
@@ -292,14 +358,14 @@ EJEMPLOS ACTUALIZADOS 2026:
 "¿Cuál es la diferencia entre Professional y Master?" →
 {"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "intermedio", "urgencia": "media"}
 
-"¿Qué incluye la membresía Elite?" →
-{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
-
-"¿Master incluye sesiones 1-1?" →
-{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
-
 "LISTO, ya vi todo el curso" →
 {"intent": "CURSO_COMPLETADO", "emotion": "EXCITED", "nivel": null, "urgencia": "media"}
+
+"Ya compré el libro, voy en el día 5" →
+{"intent": "LIBRO_30_DIAS", "emotion": "EXCITED", "nivel": null, "urgencia": "baja"}
+
+"Compré el libro" →
+{"intent": "LIBRO_30_DIAS", "emotion": "EXCITED", "nivel": null, "urgencia": "baja"}
 
 "Perdí $5000, no sé qué hacer, estoy desesperado" →
 {"intent": "SITUACION_DELICADA", "emotion": "DESPERATE", "nivel": "intermedio", "urgencia": "alta"}
@@ -310,17 +376,23 @@ EJEMPLOS ACTUALIZADOS 2026:
 "Quiero comprar Academy, ¿cómo lo hago?" →
 {"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": "cero", "urgencia": "alta"}
 
-"Quiero comprar Elite para Prop Firms" →
-{"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": "avanzado", "urgencia": "alta"}
-
 "Quiero hablar con Steven directamente" →
 {"intent": "ESCALAMIENTO", "emotion": "NEUTRAL", "nivel": null, "urgencia": "media"}
 
 "Hola, buenos días" →
 {"intent": "CONVERSACION_GENERAL", "emotion": "CALM", "nivel": null, "urgencia": "baja"}
 
-"¿Tienen contenido sobre Prop Firms?" →
-{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "avanzado", "urgencia": "media"}
+"Quiero pagar con Llave BRE B" →
+{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
+
+"Prefiero Bancolombia" →
+{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "CALM", "nivel": null, "urgencia": "media"}
+
+"Mercado Pago" →
+{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "CALM", "nivel": null, "urgencia": "media"}
+
+"Colombia" (en contexto de compra) →
+{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "CALM", "nivel": null, "urgencia": "media"}
 
 ═══════════════════════════════════════
 RECORDATORIO FINAL:
@@ -331,8 +403,9 @@ RECORDATORIO FINAL:
 - Los valores de nivel y urgencia en minúsculas
 - Si no puedes determinar nivel, usa null
 - Si menciona Academy, Professional, Master o Elite → INFO_PRODUCTOS
-- Si quiere comprar cualquier membresía → LEAD_CALIENTE
-- Precios 2026: $297, $597, $997, $1,797`;
+- Si menciona "libro", "PDF", "30 días" → LIBRO_30_DIAS
+- Si quiere comprar cualquier producto → LEAD_CALIENTE
+- Precios 2026: Libro $19.99 | Membresías: $297, $597, $997, $1,797`;
   }
 }
 
