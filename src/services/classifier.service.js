@@ -13,7 +13,8 @@ class ClassifierService {
    * Clasifica el mensaje del usuario para SR Academy
    * - intent: APRENDER_CERO, MEJORAR, PREGUNTA_TECNICA, PREGUNTA_PSICOLOGIA, 
    *           INFO_PRODUCTOS, CURSO_COMPLETADO, QUEJA, LEAD_CALIENTE, 
-   *           SITUACION_DELICADA, ESCALAMIENTO, CONVERSACION_GENERAL, LIBRO_30_DIAS
+   *           SITUACION_DELICADA, ESCALAMIENTO, CONVERSACION_GENERAL, LIBRO_30_DIAS,
+   *           COMPRA_LIBRO_PROCESO, SOPORTE_ESTUDIANTE
    * - emotion: CALM, CURIOUS, FRUSTRATED, DESPERATE, EXCITED, SKEPTICAL, ANGRY, CONFUSED
    * - nivel: cero, intermedio, avanzado, null
    * - urgencia: baja, media, alta
@@ -48,7 +49,8 @@ class ClassifierService {
         const validIntents = [
           'APRENDER_CERO', 'MEJORAR', 'PREGUNTA_TECNICA', 'PREGUNTA_PSICOLOGIA',
           'INFO_PRODUCTOS', 'CURSO_COMPLETADO', 'QUEJA', 'LEAD_CALIENTE',
-          'SITUACION_DELICADA', 'ESCALAMIENTO', 'CONVERSACION_GENERAL', 'LIBRO_30_DIAS', 'COMPRA_LIBRO_PROCESO'
+          'SITUACION_DELICADA', 'ESCALAMIENTO', 'CONVERSACION_GENERAL', 'LIBRO_30_DIAS', 
+          'COMPRA_LIBRO_PROCESO', 'SOPORTE_ESTUDIANTE'
         ];
         
         const validEmotions = [
@@ -215,6 +217,23 @@ ESCALAMIENTO:
 - Quiere atención humana específica
 - Frases: "quiero hablar con Steven", "necesito hablar con alguien", "ponme con un humano"
 
+SOPORTE_ESTUDIANTE: ⚠️ PRIORIDAD ALTA
+- Usuario es estudiante de SR Academy con problema de acceso/plataforma
+- Menciona membresía, no puede entrar, credenciales, plataforma
+- Frases clave:
+  * "Soy estudiante de SR Academy"
+  * "Tengo membresía"
+  * "No puedo entrar a la plataforma"
+  * "Mis credenciales no funcionan"
+  * "Mi usuario no sirve"
+  * "No veo el contenido"
+  * "Aparezco como estudiante genérico"
+  * "Membresía vencida"
+  * "Problema con mi acceso"
+  * "Ayuda con la plataforma"
+  * "www.stevenriosfx.com/signin"
+- ⚠️ Si dice "soy estudiante" o "tengo membresía" → SOPORTE_ESTUDIANTE
+
 CONVERSACION_GENERAL:
 - Saludos, agradecimientos, conversación casual
 - Frases: "hola", "gracias", "cómo estás", "buenos días"
@@ -300,20 +319,21 @@ REGLAS DE CLASIFICACIÓN:
 
 7. Si dice "quiero hablar con Steven" o "con un humano" → ESCALAMIENTO
 
-8. Si dice "quiero pagar", "dónde pago", "lo compro", "quiero comprar [membresía]" → LEAD_CALIENTE + urgencia alta
+8. Si dice "soy estudiante" o "tengo membresía" + problema acceso → SOPORTE_ESTUDIANTE
 
-9. Si dice "quiero adquirir el libro" → LEAD_CALIENTE + urgencia alta
+9. Si dice "quiero pagar", "dónde pago", "lo compro", "quiero comprar [membresía]" → LEAD_CALIENTE + urgencia alta
 
-10. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
+10. Si dice "quiero adquirir el libro" → LEAD_CALIENTE + urgencia alta
 
-11. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
+11. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
 
-12. Preguntas sobre miedo, disciplina, emociones SIN mencionar "libro" → PREGUNTA_PSICOLOGIA
+12. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
 
-13. Si menciona problemas de disciplina/ansiedad/auto-sabotaje + "libro"/"30 días" → LIBRO_30_DIAS
+13. Preguntas sobre miedo, disciplina, emociones SIN mencionar "libro" → PREGUNTA_PSICOLOGIA
 
-14. Si menciona "compré el libro" o "voy en el día X" → LIBRO_30_DIAS (no CURSO_COMPLETADO)
+14. Si menciona problemas de disciplina/ansiedad/auto-sabotaje + "libro"/"30 días" → LIBRO_30_DIAS
 
+15. Si menciona "compré el libro" o "voy en el día X" → LIBRO_30_DIAS (no CURSO_COMPLETADO)
 
 ═══════════════════════════════════════
 EJEMPLOS ACTUALIZADOS 2026:
@@ -394,6 +414,18 @@ EJEMPLOS ACTUALIZADOS 2026:
 "Colombia" (en contexto de compra) →
 {"intent": "COMPRA_LIBRO_PROCESO", "emotion": "CALM", "nivel": null, "urgencia": "media"}
 
+"Soy estudiante de SR Academy y no puedo entrar a la plataforma" →
+{"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
+
+"Tengo membresía Academy pero aparezco como estudiante genérico" →
+{"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
+
+"Mis credenciales no funcionan en www.stevenriosfx.com/signin" →
+{"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
+
+"No puedo ver el contenido de mi membresía" →
+{"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
+
 ═══════════════════════════════════════
 RECORDATORIO FINAL:
 ═══════════════════════════════════════
@@ -404,6 +436,7 @@ RECORDATORIO FINAL:
 - Si no puedes determinar nivel, usa null
 - Si menciona Academy, Professional, Master o Elite → INFO_PRODUCTOS
 - Si menciona "libro", "PDF", "30 días" → LIBRO_30_DIAS
+- Si menciona "soy estudiante" + problema → SOPORTE_ESTUDIANTE
 - Si quiere comprar cualquier producto → LEAD_CALIENTE
 - Precios 2026: Libro $19.99 | Membresías: $297, $597, $997, $1,797`;
   }
