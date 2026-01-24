@@ -16,7 +16,7 @@ const LINKS = {
   CURSO_GRATUITO: 'https://www.youtube.com/playlist?list=PLtik6WwJuNioT_cIRjR9kEfpjA62wNntK',
   PRICING: 'https://stevenriosfx.com/pricing',
   WHATSAPP_VENTAS: '+573006926613',
-  WHATSAPP_SOPORTE: '+573142735697'
+  WHATSAPP_SOPORTE: '++573006926613'
 };
 
 /**
@@ -117,85 +117,88 @@ router.post('/', async (req, res) => {
 
     Logger.info('📨 [SR Academy] Mensaje recibido', { subscriber_id, nombre, mensaje });
 
-    // ═══════════════════════════════════════════════════════════════
-    // DETECTAR SI ES IMAGEN (comprobante de pago)
-    // ═══════════════════════════════════════════════════════════════
-    
-    const esImagen = mensaje && (
-      mensaje.includes('.jpg') || 
-      mensaje.includes('.jpeg') || 
-      mensaje.includes('.png') ||
-      mensaje.includes('.webp') ||
-      mensaje.toLowerCase().includes('image') ||
-      mensaje.toLowerCase().includes('media') ||
-      mensaje.toLowerCase().includes('photo')
-    );
+// ═══════════════════════════════════════════════════════════════
+// DETECTAR SI ES IMAGEN (comprobante de pago)
+// ═══════════════════════════════════════════════════════════════
 
-    if (esImagen) {
-      Logger.info('📸 Imagen detectada (posible comprobante)', { subscriber_id, url: mensaje.substring(0, 100) });
-      
-      // Verificar si hay una compra pendiente para este usuario
-      const compraPendiente = await supabaseService.getCompraPendiente(subscriber_id);
-      
-      if (compraPendiente) {
-        Logger.info('✅ Compra pendiente encontrada, guardando comprobante', { 
-          compra_id: compraPendiente.id,
-          subscriber_id 
-        });
-        
-        // Guardar URL del comprobante
-        await supabaseService.updateCompraComprobante(compraPendiente.id, mensaje);
-        
-        // Actualizar lead
-        await supabaseService.markLibroComprador(subscriber_id);
-        
-        // Notificar a Steven para verificación
-        await notifyAdmin(
-          subscriber_id, 
-          nombre, 
-          `📸 COMPROBANTE RECIBIDO - Libro 30D
+const esImagen = mensaje && (
+  mensaje.toLowerCase().includes('.jpg') || 
+  mensaje.toLowerCase().includes('.jpeg') || 
+  mensaje.toLowerCase().includes('.png') ||
+  mensaje.toLowerCase().includes('.webp') ||
+  mensaje.toLowerCase().includes('image') ||
+  mensaje.toLowerCase().includes('media') ||
+  mensaje.toLowerCase().includes('photo') ||
+  mensaje.startsWith('http') && (
+    mensaje.includes('image') ||
+    mensaje.includes('photo') ||
+    mensaje.includes('img')
+  )
+);
+
+if (esImagen) {
+  Logger.info('📸 Imagen detectada', { subscriber_id, url: mensaje.substring(0, 100) });
+  
+  // Verificar si hay compra pendiente
+  const compraPendiente = await supabaseService.getCompraPendiente(subscriber_id);
+  
+  if (compraPendiente) {
+    Logger.info('✅ Compra pendiente encontrada', { 
+      compra_id: compraPendiente.id
+    });
+    
+    // Guardar comprobante
+    await supabaseService.updateCompraComprobante(compraPendiente.id, mensaje);
+    await supabaseService.markLibroComprador(subscriber_id);
+    
+    // Notificar a Steven
+    await notifyAdmin(
+      subscriber_id, 
+      nombre, 
+      `📸 COMPROBANTE LIBRO RECIBIDO
 
 Compra ID: ${compraPendiente.id}
 Cliente: ${compraPendiente.nombre_completo}
 Email: ${compraPendiente.email}
 Celular: ${compraPendiente.celular}
-País: ${compraPendiente.pais || 'No especificado'}
+País: ${compraPendiente.pais}
 Método: ${compraPendiente.metodo_pago}
 Monto: $${compraPendiente.monto_usd} USD
 
-Ver comprobante: ${mensaje}
+Comprobante: ${mensaje}
 
-SIGUIENTE PASO:
-1. Verificar pago en ${compraPendiente.metodo_pago}
-2. Si está OK → Marcar como aprobado en Supabase
-3. Enviar PDF del libro + accesos manualmente`, 
-          'COMPROBANTE_LIBRO'
-        );
-        
-        // Guardar analytics
-        await saveAnalytics(
-          subscriber_id, 
-          nombre, 
-          'COMPROBANTE_LIBRO', 
-          'Imagen de comprobante', 
-          'Comprobante recibido, verificando pago', 
-          true, 
-          startTime
-        );
-        
-        return res.json({ 
-          response: `Perfecto ${nombre}! Recibí tu comprobante 📸
+ACCIÓN REQUERIDA:
+1️⃣ Verificar pago en ${compraPendiente.metodo_pago}
+2️⃣ Si correcto → Enviar PDF del libro
+3️⃣ Activar acceso al curso complementario
+4️⃣ Añadir a grupo WhatsApp estudiantes`, 
+      'COMPROBANTE_LIBRO'
+    );
+    
+    await saveAnalytics(
+      subscriber_id, 
+      nombre, 
+      'COMPROBANTE_LIBRO', 
+      'Imagen de comprobante', 
+      'Comprobante recibido', 
+      true, 
+      startTime
+    );
+    
+    return res.json({ 
+      response: `Perfecto ${nombre}! Recibí tu comprobante 📸
 
-Estoy verificando el pago ahora mismo. Te confirmo en máximo 30 minutos y te envío el libro.
+Estoy verificando el pago ahora mismo.
 
-Si pagaste hace poco y necesitas el libro urgente, Steven te responderá al instante. Gracias por tu paciencia 🙏` 
-        });
-      } else {
-        // No hay compra pendiente, puede ser otra cosa
-        Logger.info('⚠️ Imagen recibida pero no hay compra pendiente', { subscriber_id });
-        // Continuar flujo normal (el classifier decidirá qué hacer)
-      }
-    }
+Te confirmo y envío el libro en máximo 2 horas (generalmente antes).
+
+Si es urgente, Steven te responderá por este mismo chat. Gracias por tu paciencia 🙏` 
+    });
+  }
+  
+  // Si no hay compra pendiente, continuar flujo normal
+  Logger.info('ℹ️ Imagen recibida pero sin compra pendiente', { subscriber_id });
+}
 
     // ═══════════════════════════════════════
     // DETECCIÓN DE PALABRAS CLAVE ESPECIALES
@@ -356,64 +359,58 @@ Logger.info(`📂 Clasificación SR Academy`, { intent, emotion, nivel, urgencia
 // ═══════════════════════════════════════
 let contextoCompra = null;
 
-// Obtener memoria reciente para detectar contexto
-const memoryService = require('../services/memory.service');
-const memoriaReciente = memoryService.getHistory(subscriber_id, 5);
-
-// Verificar si en los últimos 3 mensajes se mencionó "comprar el libro"
-const mensajesRecientes = memoriaReciente
-  .filter(m => m.role === 'user')
-  .slice(-3)
-  .map(m => m.content.toLowerCase());
-
-const mencionoCompraLibro = mensajesRecientes.some(m => 
-  (m.includes('comprar') || m.includes('adquirir') || m.includes('pagar')) && 
-  (m.includes('libro') || m.includes('pdf') || m.includes('30 días') || m.includes('30 dias'))
-);
-
-// Si mencionó compra del libro recientemente, estamos en contexto de compra
-// Si mencionó compra del libro recientemente, estamos en contexto de compra
-if (mencionoCompraLibro || intent === 'LEAD_CALIENTE' || intent === 'COMPRA_LIBRO_PROCESO') {
+if (intent === 'LEAD_CALIENTE' || intent === 'COMPRA_LIBRO_PROCESO') {
   
-  // Detectar qué información ya tenemos
-  const ultimosMensajes = memoriaReciente
-    .map(m => {
-      // La memoria puede venir como 'content' o directamente el string
-      const texto = typeof m === 'string' ? m : (m.content || m.message || '');
-      return texto.toLowerCase();
-    })
-    .join(' ');
+  // Verificar si mencionó el libro específicamente
+  const mencionaLibro = mensaje.toLowerCase().includes('libro') || 
+                        mensaje.toLowerCase().includes('30 días') ||
+                        mensaje.toLowerCase().includes('30 dias') ||
+                        mensaje.toLowerCase().includes('peor enemigo');
   
-  Logger.info('🔍 Analizando memoria para contexto', { 
-    mensajesEnMemoria: memoriaReciente.length,
-    textoCompleto: ultimosMensajes.substring(0, 200) 
-  });
-  
-  let tienePais = false;
-  let tieneMetodo = false;
-  
-  // Lista de países
-  const paises = ['colombia', 'méxico', 'mexico', 'argentina', 'chile', 'perú', 'peru', 'españa', 'spain'];
-  tienePais = paises.some(p => ultimosMensajes.includes(p));
-  
-  // Lista de métodos de pago
-  const metodos = ['mercado pago', 'mercadopago', 'llave', 'bre b', 'breb', 'bancolombia', 'cripto', 'usdt'];
-  tieneMetodo = metodos.some(m => ultimosMensajes.includes(m));
-  
-  // Determinar estado del flujo
-  if (!tienePais) {
-    contextoCompra = 'ESPERANDO_PAIS';
-  } else if (!tieneMetodo) {
-    contextoCompra = 'ESPERANDO_METODO';
-  } else {
-    contextoCompra = 'ESPERANDO_DATOS';
+  if (mencionaLibro) {
+    // Obtener memoria reciente
+    const memoryService = require('../services/memory.service');
+    const memoriaReciente = memoryService.getHistory(subscriber_id, 10);
+    
+    // Convertir memoria a texto
+    const ultimosMensajes = memoriaReciente
+      .map(m => {
+        const texto = typeof m === 'string' ? m : (m.content || m.message || '');
+        return texto.toLowerCase();
+      })
+      .join(' ');
+    
+    // Detectar país
+    const paises = ['colombia', 'méxico', 'mexico', 'argentina', 'chile', 'perú', 'peru', 'españa', 'spain', 'venezuela', 'ecuador'];
+    const tienePais = paises.some(p => ultimosMensajes.includes(p));
+    
+    // Detectar método de pago
+    const metodos = ['mercado pago', 'mercadopago', 'llave', 'bre b', 'breb', 'bancolombia', 'cripto', 'usdt', 'bitcoin'];
+    const tieneMetodo = metodos.some(m => ultimosMensajes.includes(m));
+    
+    // Detectar si ya dio datos (nombre + email + celular)
+    const emailRegex = /@/;
+    const telefonoRegex = /\+?\d{10,}/;
+    const tieneDatos = emailRegex.test(ultimosMensajes) && telefonoRegex.test(ultimosMensajes);
+    
+    // Determinar estado del flujo
+    if (!tienePais) {
+      contextoCompra = 'ESPERANDO_PAIS';
+    } else if (!tieneMetodo) {
+      contextoCompra = 'ESPERANDO_METODO';
+    } else if (!tieneDatos) {
+      contextoCompra = 'ESPERANDO_DATOS';
+    } else {
+      contextoCompra = 'ESPERANDO_COMPROBANTE';
+    }
+    
+    Logger.info('📚 CONTEXTO COMPRA LIBRO', { 
+      contextoCompra, 
+      tienePais, 
+      tieneMetodo,
+      tieneDatos
+    });
   }
-  
-  Logger.info('📚 CONTEXTO COMPRA LIBRO DETECTADO', { 
-    contextoCompra, 
-    tienePais, 
-    tieneMetodo 
-  });
 }
 
     // ═══════════════════════════════════════
@@ -437,10 +434,12 @@ if (mencionoCompraLibro || intent === 'LEAD_CALIENTE' || intent === 'COMPRA_LIBR
     const fueEscalado = intent === 'ESCALAMIENTO' || intent === 'SITUACION_DELICADA';
     const esLeadCaliente = intent === 'LEAD_CALIENTE' || urgencia === 'alta';
 
-    if (fueEscalado || esLeadCaliente) {
-      const tipo = esLeadCaliente ? 'LEAD_CALIENTE' : intent;
-      await notifyAdmin(subscriber_id, nombre, mensaje, tipo);
-    }
+if (fueEscalado || esLeadCaliente || intent === 'SOPORTE_ESTUDIANTE') {
+  const tipo = esLeadCaliente ? 'LEAD_CALIENTE' : 
+               intent === 'SOPORTE_ESTUDIANTE' ? 'SOPORTE_ESTUDIANTE' : 
+               intent;
+  await notifyAdmin(subscriber_id, nombre, mensaje, tipo);
+}
 
  // ═══════════════════════════════════════
     // ACTUALIZAR LEAD EN SUPABASE
@@ -687,12 +686,12 @@ async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
     const now = new Date();
     const colombiaOffset = -5;
     const colombiaHour = (now.getUTCHours() + colombiaOffset + 24) % 24;
-    
+
     const isBusinessHours = colombiaHour >= 8 && colombiaHour < 17;
 
-    let notification = '';
-    
-    if (tipo === 'LEAD_CALIENTE') {
+    let notification = "";
+
+    if (tipo === "LEAD_CALIENTE") {
       notification = `🔥 LEAD CALIENTE - SR Academy
 
 👤 ${nombre}
@@ -700,7 +699,7 @@ async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
 💬 "${mensaje}"
 
 ⚡ Este lead quiere pagar/comprar`;
-    } else if (tipo === 'SITUACION_DELICADA') {
+    } else if (tipo === "SITUACION_DELICADA") {
       notification = `⚠️ SITUACIÓN DELICADA - SR Academy
 
 👤 ${nombre}
@@ -708,9 +707,18 @@ async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
 💬 "${mensaje}"
 
 🚨 Posible crisis emocional/pérdida grande`;
-    } else if (tipo === 'COMPROBANTE_LIBRO') {
+    } else if (tipo === "COMPROBANTE_LIBRO") {
       // El mensaje ya viene formateado desde donde se llama
       notification = mensaje;
+    } else if (tipo === "SOPORTE_ESTUDIANTE") {
+      notification = `🎓 SOPORTE ESTUDIANTE - SR Academy
+
+👤 ${nombre}
+📱 ID: ${subscriberId}
+💬 "${mensaje}"
+
+⚠️ Estudiante con problema de acceso/plataforma
+🚨 REVISAR Y RESOLVER EN 2-4 HORAS`;
     } else {
       notification = `👤 ESCALAMIENTO - SR Academy
 
@@ -729,14 +737,15 @@ async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
       subscriberId,
       nombre,
       mensaje: notification,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
-    Logger.info('📢 Admin notificado', { tipo, subscriberId });
+    Logger.info("📢 Admin notificado", { tipo, subscriberId });
   } catch (error) {
-    Logger.error('Error notificando admin:', error);
+    Logger.error("Error notificando admin:", error);
   }
 }
+
 
 // ═══════════════════════════════════════
 // DETECTAR DATOS DEL COMPRADOR
