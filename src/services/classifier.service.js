@@ -11,11 +11,11 @@ class ClassifierService {
 
   /**
    * Clasifica el mensaje del usuario para SR Academy
-   * - intent: APRENDER_CERO, MEJORAR, PREGUNTA_TECNICA, PREGUNTA_PSICOLOGIA, 
-   *           INFO_PRODUCTOS, CURSO_COMPLETADO, QUEJA, LEAD_CALIENTE, 
+   * - intent: APRENDER_CERO, MEJORAR, PREGUNTA_TECNICA, PREGUNTA_PSICOLOGIA,
+   *           INFO_PRODUCTOS, CURSO_COMPLETADO, QUEJA, LEAD_CALIENTE,
    *           SITUACION_DELICADA, ESCALAMIENTO, CONVERSACION_GENERAL, LIBRO_30_DIAS,
    *           COMPRA_LIBRO_PROCESO, SOPORTE_ESTUDIANTE
-   * - emotion: CALM, CURIOUS, FRUSTRATED, DESPERATE, EXCITED, SKEPTICAL, ANGRY, CONFUSED
+   * - emotion: CALM, CURIOUS, FRUSTRATED, DESPERATE, EXCITED, SKEPTICAL, ANGRY, CONFUSED, NEUTRAL
    * - nivel: cero, intermedio, avanzado, null
    * - urgencia: baja, media, alta
    */
@@ -36,7 +36,7 @@ class ClassifierService {
       });
 
       const raw = completion.choices[0].message.content.trim();
-      
+
       // Valores por defecto
       let intent = 'CONVERSACION_GENERAL';
       let emotion = 'NEUTRAL';
@@ -49,12 +49,12 @@ class ClassifierService {
         const validIntents = [
           'APRENDER_CERO', 'MEJORAR', 'PREGUNTA_TECNICA', 'PREGUNTA_PSICOLOGIA',
           'INFO_PRODUCTOS', 'CURSO_COMPLETADO', 'QUEJA', 'LEAD_CALIENTE',
-          'SITUACION_DELICADA', 'ESCALAMIENTO', 'CONVERSACION_GENERAL', 'LIBRO_30_DIAS', 
+          'SITUACION_DELICADA', 'ESCALAMIENTO', 'CONVERSACION_GENERAL', 'LIBRO_30_DIAS',
           'COMPRA_LIBRO_PROCESO', 'SOPORTE_ESTUDIANTE'
         ];
-        
+
         const validEmotions = [
-          'CALM', 'CURIOUS', 'FRUSTRATED', 'DESPERATE', 
+          'CALM', 'CURIOUS', 'FRUSTRATED', 'DESPERATE',
           'EXCITED', 'SKEPTICAL', 'ANGRY', 'CONFUSED', 'NEUTRAL'
         ];
 
@@ -130,7 +130,7 @@ INTENCIONES POSIBLES (intent):
 ═══════════════════════════════════════
 
 LIBRO_30_DIAS: ⭐ NUEVO PRODUCTO 2026
-- Usuario menciona el libro "30 días para dejar de ser tu peor enemigo"
+- Usuario menciona el libro '30 días para dejar de ser tu peor enemigo'
 - Pregunta por el PDF, libro, o programa de 30 días
 - Menciona problemas psicológicos específicos del libro:
   * Ansiedad en trading
@@ -138,105 +138,119 @@ LIBRO_30_DIAS: ⭐ NUEVO PRODUCTO 2026
   * Impulsos/Revenge trading
   * Auto-sabotaje
   * Falta de disciplina
-  * "No soy consistente"
-  * "Pierdo por emociones"
-  * "Me saboteo"
+  * 'No soy consistente'
+  * 'Pierdo por emociones'
+  * 'Me saboteo'
   * Overtrading
   * Ejercicios mentales
   * Ejercicios diarios
   * Sistema de 30 días
-- Frases: "quiero el libro", "el PDF", "30 días", "peor enemigo", "mentalidad", "disciplina mental"
-- ⚠️ PRIORIDAD ALTA: Si menciona "libro", "pdf", "30 días" → LIBRO_30_DIAS
+- Frases: 'quiero el libro', 'el PDF', '30 días', 'peor enemigo', 'mentalidad', 'disciplina mental'
+- También cuenta como LIBRO_30_DIAS si menciona:
+  * 'combo', 'combo premium', 'premium'
+  * 'audiolibro', 'audio', 'mp3'
+  * '¿el audiolibro se vende por separado?'
+  * '¿cómo recibo el pdf y el audio?'
+  * '¿en qué formato viene el audio?'
+- ⚠️ PRIORIDAD ALTA: Si menciona 'libro', 'pdf', '30 días' → LIBRO_30_DIAS (salvo que diga que quiere comprar ya)
 
 APRENDER_CERO:
 - Quiere empezar en trading desde cero
 - No sabe nada, es principiante total
-- Frases: "quiero aprender", "soy nuevo", "cómo empiezo", "no sé nada de trading"
+- Frases: 'quiero aprender', 'soy nuevo', 'cómo empiezo', 'no sé nada de trading'
 
 MEJORAR:
 - Ya opera pero pierde dinero o no es consistente
 - Tiene experiencia pero no resultados
-- Frases: "llevo tiempo operando pero pierdo", "no soy rentable", "qué hago mal"
+- Frases: 'llevo tiempo operando pero pierdo', 'no soy rentable', 'qué hago mal'
 
 PREGUNTA_TECNICA:
 - Pregunta sobre indicadores, patrones, análisis técnico
 - Estrategias, velas, soportes, resistencias, fibonacci
-- Frases: "qué es un martillo", "cómo uso RSI", "cuándo entrar"
+- Frases: 'qué es un martillo', 'cómo uso RSI', 'cuándo entrar'
 
 PREGUNTA_PSICOLOGIA:
 - Pregunta sobre emociones, miedo, disciplina, mentalidad
 - Control emocional, FOMO, ego, paciencia
-- Frases: "cómo controlo el miedo", "me cuesta la disciplina", "opero por impulso"
-- ⚠️ NOTA: Si menciona "libro" o "30 días" en contexto de psicología → LIBRO_30_DIAS
+- Frases: 'cómo controlo el miedo', 'me cuesta la disciplina', 'opero por impulso'
+- ⚠️ NOTA: Si menciona 'libro' o '30 días' en contexto de psicología → LIBRO_30_DIAS
 
 INFO_PRODUCTOS:
 - Pregunta por precios, membresías, cursos pagados, academia
 - Quiere saber costos, qué incluye, cómo pagar
 - Menciona membresías específicas: Academy, Professional, Master, Elite
-- Frases: "cuánto cuesta", "qué incluye Academy", "diferencia entre Professional y Master"
+- Frases: 'cuánto cuesta', 'qué incluye Academy', 'diferencia entre Professional y Master'
 - ⚠️ IMPORTANTE: Si pregunta por Academy, Professional, Master o Elite específicamente → INFO_PRODUCTOS
 
 CURSO_COMPLETADO:
 - Indica que terminó el curso gratuito de 12 horas
-- Escribe "LISTO" o similar
-- Frases: "listo", "ya terminé el curso", "vi todo el curso"
+- Escribe 'LISTO' o similar
+- Frases: 'listo', 'ya terminé el curso', 'vi todo el curso'
 
 QUEJA:
 - Frustración con el servicio o contenido
 - ⚠️ NOTA: Si la queja es específicamente sobre el precio del libro → LIBRO_30_DIAS (no QUEJA)
 - Reclamo, insatisfacción
-- Frases: "esto no sirve", "me siento estafado", "no me ayudó"
+- Frases: 'esto no sirve', 'me siento estafado', 'no me ayudó'
 
 LEAD_CALIENTE:
 - Quiere comprar o pagar YA
 - Listo para adquirir membresía, curso o libro
-- Frases: "quiero pagar", "cómo compro", "dónde pago", "quiero comprar Academy/Professional/Master/Elite"
-- "quiero adquirir el libro" → LEAD_CALIENTE + urgencia alta
-- ⚠️ Si dice "quiero comprar [membresía]" → LEAD_CALIENTE con urgencia alta
+- Frases: 'quiero pagar', 'cómo compro', 'dónde pago', 'quiero comprar Academy/Professional/Master/Elite'
+- 'quiero adquirir el libro' → LEAD_CALIENTE + urgencia alta
+- 'quiero el combo' / 'quiero el premium' / 'quiero el audiolibro' → LEAD_CALIENTE + urgencia alta
 
 COMPRA_LIBRO_PROCESO:
-- Usuario está en medio del proceso de compra del libro
+- Usuario está en medio del proceso de compra del libro (LIBRO o COMBO)
 - Menciona método de pago, país, o envía datos
-- Frases: 
-  * "Mercado Pago", "mercadopago", "tarjeta", "PSE"
-  * "Llave BRE B", "BRE B", "llave", "transferencia instantánea"
-  * "Bancolombia", "banco", "transferencia bancaria"
-  * "Criptomonedas", "cripto", "USDT", "bitcoin"
-  * "desde Colombia", "desde México", "soy de Argentina"
-  * País: "Colombia", "México", "Argentina", "Chile", etc
-- ⚠️ Este intent es para cuando YA decidió comprar y está dando info
+- Frases:
+  * 'Mercado Pago', 'mercadopago', 'tarjeta', 'PSE'
+  * 'Llave BRE B', 'BRE B', 'llave', 'transferencia instantánea'
+  * 'Bancolombia', 'banco', 'transferencia bancaria'
+  * 'Criptomonedas', 'cripto', 'USDT', 'bitcoin'
+  * 'desde Colombia', 'desde México', 'soy de Argentina'
+  * País: 'Colombia', 'México', 'Argentina', 'Chile', etc
+- También es COMPRA_LIBRO_PROCESO si menciona:
+  * 'ya pagué', 'ya pague'
+  * 'ya hice el pago'
+  * 'te envié el comprobante'
+  * 'adjunto el comprobante'
+  * 'aquí está la captura'
+  * 'mi correo es...', 'mi email es...'
+  * 'mi número es...'
+- ⚠️ Este intent es para cuando YA decidió comprar y está dando info / confirmando pago
 
 SITUACION_DELICADA:
 - Menciona pérdida grande de dinero
 - Desesperación, crisis emocional relacionada con trading
-- Frases: "perdí todo", "quemé mi cuenta", "no sé qué hacer", "estoy desesperado"
+- Frases: 'perdí todo', 'quemé mi cuenta', 'no sé qué hacer', 'estoy desesperado'
 - ⚠️ MUY IMPORTANTE DETECTAR ESTO
 
 ESCALAMIENTO:
 - Pide hablar con Steven directamente
 - Quiere atención humana específica
-- Frases: "quiero hablar con Steven", "necesito hablar con alguien", "ponme con un humano"
+- Frases: 'quiero hablar con Steven', 'necesito hablar con alguien', 'ponme con un humano'
 
 SOPORTE_ESTUDIANTE: ⚠️ PRIORIDAD ALTA
 - Usuario es estudiante de SR Academy con problema de acceso/plataforma
 - Menciona membresía, no puede entrar, credenciales, plataforma
 - Frases clave:
-  * "Soy estudiante de SR Academy"
-  * "Tengo membresía"
-  * "No puedo entrar a la plataforma"
-  * "Mis credenciales no funcionan"
-  * "Mi usuario no sirve"
-  * "No veo el contenido"
-  * "Aparezco como estudiante genérico"
-  * "Membresía vencida"
-  * "Problema con mi acceso"
-  * "Ayuda con la plataforma"
-  * "www.stevenriosfx.com/signin"
-- ⚠️ Si dice "soy estudiante" o "tengo membresía" → SOPORTE_ESTUDIANTE
+  * 'Soy estudiante de SR Academy'
+  * 'Tengo membresía'
+  * 'No puedo entrar a la plataforma'
+  * 'Mis credenciales no funcionan'
+  * 'Mi usuario no sirve'
+  * 'No veo el contenido'
+  * 'Aparezco como estudiante genérico'
+  * 'Membresía vencida'
+  * 'Problema con mi acceso'
+  * 'Ayuda con la plataforma'
+  * 'www.stevenriosfx.com/signin'
+- ⚠️ Si dice 'soy estudiante' o 'tengo membresía' → SOPORTE_ESTUDIANTE
 
 CONVERSACION_GENERAL:
 - Saludos, agradecimientos, conversación casual
-- Frases: "hola", "gracias", "cómo estás", "buenos días"
+- Frases: 'hola', 'gracias', 'cómo estás', 'buenos días'
 
 ═══════════════════════════════════════
 EMOCIONES POSIBLES (emotion):
@@ -244,10 +258,10 @@ EMOCIONES POSIBLES (emotion):
 
 CALM: Tranquilo, educado, sin urgencia
 CURIOUS: Curioso, quiere aprender, hace preguntas genuinas
-FRUSTRATED: Molestia moderada, cansancio, "esto no funciona"
-DESPERATE: Desesperado, en crisis, "perdí todo" ⚠️ IMPORTANTE
+FRUSTRATED: Molestia moderada, cansancio, 'esto no funciona'
+DESPERATE: Desesperado, en crisis, 'perdí todo' ⚠️ IMPORTANTE
 EXCITED: Emocionado, motivado, entusiasmado
-SKEPTICAL: Escéptico, desconfiado, "esto es real?"
+SKEPTICAL: Escéptico, desconfiado, 'esto es real?'
 ANGRY: Muy molesto, exige, tono fuerte
 CONFUSED: No entiende, perdido, pide aclaración
 NEUTRAL: Sin carga emocional clara
@@ -275,11 +289,10 @@ REGLAS CRÍTICAS - SR ACADEMY 2026:
 
 🔴 PRODUCTOS ACTUALES 2026:
 
-LIBRO (NUEVO 2026):
-- "30 días para dejar de ser tu peor enemigo en el trading"
-- Precio lanzamiento: $19.99 (regular: $29.99)
-- PDF + 12h curso + WhatsApp estudiantes
-- Si menciona "libro", "pdf", "30 días" → LIBRO_30_DIAS
+LIBRO (2026):
+A) PDF — $19.99
+B) Combo PDF + Audiolibro MP3 — $29.99
+- Si menciona libro/pdf/30 días/combo/audiolibro/mp3 → LIBRO_30_DIAS (salvo que diga 'quiero comprar ya', que es LEAD_CALIENTE)
 
 MEMBRESÍAS 2026:
 - Academy ($297, 12 meses)
@@ -305,125 +318,92 @@ Si menciona estas, igual clasifica como INFO_PRODUCTOS pero el agente corregirá
 REGLAS DE CLASIFICACIÓN:
 ═══════════════════════════════════════
 
-1. Si menciona "perdí todo", "quemé la cuenta", "estoy desesperado" → SITUACION_DELICADA + DESPERATE + urgencia alta
+1. Si menciona 'perdí todo', 'quemé la cuenta', 'estoy desesperado' → SITUACION_DELICADA + DESPERATE + urgencia alta
 
-2. Si dice "LISTO" o "terminé el curso" → CURSO_COMPLETADO
+2. Si dice 'LISTO' o 'terminé el curso' → CURSO_COMPLETADO
 
-3. Si pregunta "cuánto cuesta", "precio", "membresía", "cómo pago" → INFO_PRODUCTOS
+3. Si pregunta 'cuánto cuesta', 'precio', 'membresía', 'cómo pago' → INFO_PRODUCTOS
 
 4. Si pregunta por membresía específica (Academy, Professional, Master, Elite) → INFO_PRODUCTOS
 
-5. Si menciona "libro", "PDF", "30 días", "peor enemigo" → LIBRO_30_DIAS
+5. Si menciona 'libro', 'PDF', '30 días', 'peor enemigo' → LIBRO_30_DIAS
 
 6. Si pregunta diferencia entre membresías → INFO_PRODUCTOS
 
-7. Si dice "quiero hablar con Steven" o "con un humano" → ESCALAMIENTO
+7. Si dice 'quiero hablar con Steven' o 'con un humano' → ESCALAMIENTO
 
-8. Si dice "soy estudiante" o "tengo membresía" + problema acceso → SOPORTE_ESTUDIANTE
+8. Si dice 'soy estudiante' o 'tengo membresía' + problema acceso → SOPORTE_ESTUDIANTE
 
-9. Si dice "quiero pagar", "dónde pago", "lo compro", "quiero comprar [membresía]" → LEAD_CALIENTE + urgencia alta
+9. Si dice 'quiero pagar', 'dónde pago', 'lo compro', 'quiero comprar [membresía]' → LEAD_CALIENTE + urgencia alta
 
-10. Si dice "quiero adquirir el libro" → LEAD_CALIENTE + urgencia alta
+9.1. Si dice 'quiero el combo', 'quiero el premium', 'quiero el audiolibro', 'quiero el combo pdf+audio' → LEAD_CALIENTE + urgencia alta
 
-11. "hola", "buenos días", "gracias" sin más contexto → CONVERSACION_GENERAL
+9.2. Si pregunta 'qué incluye el combo', 'qué trae el premium', 'incluye audiolibro' → LIBRO_30_DIAS + urgencia media
+
+10. Si dice 'quiero adquirir el libro' → LEAD_CALIENTE + urgencia alta
+
+11. 'hola', 'buenos días', 'gracias' sin más contexto → CONVERSACION_GENERAL
 
 12. Preguntas sobre indicadores, velas, entradas → PREGUNTA_TECNICA
 
-13. Preguntas sobre miedo, disciplina, emociones SIN mencionar "libro" → PREGUNTA_PSICOLOGIA
+13. Preguntas sobre miedo, disciplina, emociones SIN mencionar 'libro' → PREGUNTA_PSICOLOGIA
 
-14. Si menciona problemas de disciplina/ansiedad/auto-sabotaje + "libro"/"30 días" → LIBRO_30_DIAS
+14. Si menciona problemas de disciplina/ansiedad/auto-sabotaje + 'libro'/'30 días' → LIBRO_30_DIAS
 
-15. Si menciona "compré el libro" o "voy en el día X" → LIBRO_30_DIAS (no CURSO_COMPLETADO)
+15. Si menciona 'compré el libro' o 'voy en el día X' → LIBRO_30_DIAS (no CURSO_COMPLETADO)
+
+16. Si menciona método de pago / país / comprobante / email en contexto de compra del libro/combo → COMPRA_LIBRO_PROCESO
 
 ═══════════════════════════════════════
 EJEMPLOS ACTUALIZADOS 2026:
 ═══════════════════════════════════════
 
-"Hola, quiero aprender trading desde cero" →
+'Hola, quiero aprender trading desde cero' →
 {"intent": "APRENDER_CERO", "emotion": "CURIOUS", "nivel": "cero", "urgencia": "baja"}
 
-"Llevo 6 meses operando pero sigo perdiendo" →
+'Llevo 6 meses operando pero sigo perdiendo' →
 {"intent": "MEJORAR", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
 
-"Cómo identifico un patrón de hombro cabeza hombro?" →
+'Cómo identifico un patrón de hombro cabeza hombro?' →
 {"intent": "PREGUNTA_TECNICA", "emotion": "CURIOUS", "nivel": null, "urgencia": "baja"}
 
-"No puedo controlar mis emociones cuando opero" →
+'No puedo controlar mis emociones cuando opero' →
 {"intent": "PREGUNTA_PSICOLOGIA", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
 
-"Quiero el libro de 30 días" →
+'Quiero el libro de 30 días' →
 {"intent": "LIBRO_30_DIAS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
-"Tengo mucha ansiedad al operar, ¿el libro me ayuda?" →
-{"intent": "LIBRO_30_DIAS", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
+'Qué incluye el combo premium?' →
+{"intent": "LIBRO_30_DIAS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
-"Hola Steven, quiero adquirir el libro 30 días para dejar de ser tu peor enemigo en el trading por $19.99" →
+'Incluye audiolibro?' →
+{"intent": "LIBRO_30_DIAS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
+
+'Quiero el combo' →
 {"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
 
-"Me saboteo mucho, pierdo por impulsos" →
+'Tengo mucha ansiedad al operar, ¿el libro me ayuda?' →
 {"intent": "LIBRO_30_DIAS", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
 
-"No tengo tiempo para hacer ejercicios diarios" →
-{"intent": "LIBRO_30_DIAS", "emotion": "SKEPTICAL", "nivel": null, "urgencia": "baja"}
-
-"Cuánto cuesta la membresía?" →
-{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
-
-"Cuáles son los precios de las membresías 2026?" →
-{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
-
-"¿Qué incluye Academy?" →
-{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "cero", "urgencia": "media"}
-
-"¿Cuál es la diferencia entre Professional y Master?" →
-{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": "intermedio", "urgencia": "media"}
-
-"LISTO, ya vi todo el curso" →
-{"intent": "CURSO_COMPLETADO", "emotion": "EXCITED", "nivel": null, "urgencia": "media"}
-
-"Ya compré el libro, voy en el día 5" →
-{"intent": "LIBRO_30_DIAS", "emotion": "EXCITED", "nivel": null, "urgencia": "baja"}
-
-"Compré el libro" →
-{"intent": "LIBRO_30_DIAS", "emotion": "EXCITED", "nivel": null, "urgencia": "baja"}
-
-"Perdí $5000, no sé qué hacer, estoy desesperado" →
-{"intent": "SITUACION_DELICADA", "emotion": "DESPERATE", "nivel": "intermedio", "urgencia": "alta"}
-
-"Quiero pagar la membresía, cómo hago?" →
+'Hola Steven, quiero adquirir el libro 30 días para dejar de ser tu peor enemigo en el trading por $19.99' →
 {"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
 
-"Quiero comprar Academy, ¿cómo lo hago?" →
-{"intent": "LEAD_CALIENTE", "emotion": "EXCITED", "nivel": "cero", "urgencia": "alta"}
-
-"Quiero hablar con Steven directamente" →
-{"intent": "ESCALAMIENTO", "emotion": "NEUTRAL", "nivel": null, "urgencia": "media"}
-
-"Hola, buenos días" →
-{"intent": "CONVERSACION_GENERAL", "emotion": "CALM", "nivel": null, "urgencia": "baja"}
-
-"Quiero pagar con Llave BRE B" →
+'Ya pagué, adjunto el comprobante' →
 {"intent": "COMPRA_LIBRO_PROCESO", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
 
-"Prefiero Bancolombia" →
-{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "CALM", "nivel": null, "urgencia": "media"}
+'Mi correo es x@x.com y ya hice el pago' →
+{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "EXCITED", "nivel": null, "urgencia": "alta"}
 
-"Mercado Pago" →
-{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "CALM", "nivel": null, "urgencia": "media"}
+'Me saboteo mucho, pierdo por impulsos' →
+{"intent": "LIBRO_30_DIAS", "emotion": "FRUSTRATED", "nivel": "intermedio", "urgencia": "media"}
 
-"Colombia" (en contexto de compra) →
-{"intent": "COMPRA_LIBRO_PROCESO", "emotion": "CALM", "nivel": null, "urgencia": "media"}
+'Cuánto cuesta la membresía?' →
+{"intent": "INFO_PRODUCTOS", "emotion": "CURIOUS", "nivel": null, "urgencia": "media"}
 
-"Soy estudiante de SR Academy y no puedo entrar a la plataforma" →
-{"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
+'Quiero hablar con Steven directamente' →
+{"intent": "ESCALAMIENTO", "emotion": "NEUTRAL", "nivel": null, "urgencia": "media"}
 
-"Tengo membresía Academy pero aparezco como estudiante genérico" →
-{"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
-
-"Mis credenciales no funcionan en www.stevenriosfx.com/signin" →
-{"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
-
-"No puedo ver el contenido de mi membresía" →
+'Soy estudiante de SR Academy y no puedo entrar a la plataforma' →
 {"intent": "SOPORTE_ESTUDIANTE", "emotion": "FRUSTRATED", "nivel": null, "urgencia": "alta"}
 
 ═══════════════════════════════════════
@@ -435,11 +415,13 @@ RECORDATORIO FINAL:
 - Los valores de nivel y urgencia en minúsculas
 - Si no puedes determinar nivel, usa null
 - Si menciona Academy, Professional, Master o Elite → INFO_PRODUCTOS
-- Si menciona "libro", "PDF", "30 días" → LIBRO_30_DIAS
-- Si menciona "soy estudiante" + problema → SOPORTE_ESTUDIANTE
+- Si menciona 'libro', 'PDF', '30 días', 'combo', 'audiolibro', 'mp3' → LIBRO_30_DIAS (salvo 'quiero comprar ya' o 'quiero el combo' → LEAD_CALIENTE)
+- Si menciona 'ya pagué' / 'comprobante' / 'mi correo es' en compra → COMPRA_LIBRO_PROCESO
+- Si menciona 'soy estudiante' + problema → SOPORTE_ESTUDIANTE
 - Si quiere comprar cualquier producto → LEAD_CALIENTE
-- Precios 2026: Libro $19.99 | Membresías: $297, $597, $997, $1,797`;
+- Precios 2026: Libro PDF $19.99 | Combo $29.99 | Membresías: $297, $597, $997, $1,797`;
   }
 }
 
 module.exports = new ClassifierService();
+

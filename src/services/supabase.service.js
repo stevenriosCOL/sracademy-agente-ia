@@ -8,6 +8,9 @@ class SupabaseService {
       config.SUPABASE_URL,
       config.SUPABASE_SERVICE_ROLE_KEY
     );
+
+    // ✅ PASO 2 — Arreglar cliente Supabase (CRÍTICO)
+    this.supabase = this.client;
   }
 
   // ═══════════════════════════════════════
@@ -158,7 +161,8 @@ class SupabaseService {
         .from('sracademy_analytics')
         .select('categoria')
         .eq('subscriber_id', sessionId)
-        .order('timestamp', { ascending: false })
+        // ✅ PASO 1.1 — Fix BUG analytics
+        .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
@@ -329,8 +333,9 @@ class SupabaseService {
       const { data, error } = await this.client
         .from('sracademy_analytics')
         .select('categoria, fue_escalado')
-        .gte('timestamp', startDate)
-        .lte('timestamp', endDate);
+        // ✅ PASO 1.2 — Fix BUG analytics
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
 
       if (error) {
         Logger.error('Error obteniendo stats:', error);
@@ -459,6 +464,7 @@ class SupabaseService {
     try {
       const { data: result, error } = await this.client
         .from('libro_compras')
+        // ✅ PASO 3 — Producto PDF vs Combo (CRÍTICO)
         .insert({
           subscriber_id: data.subscriber_id,
           nombre_completo: data.nombre_completo,
@@ -466,7 +472,11 @@ class SupabaseService {
           celular: data.celular,
           pais: data.pais,
           metodo_pago: data.metodo_pago,
-          monto_usd: data.monto_usd || 19.99,
+
+          producto: data.producto || 'pdf',
+
+          monto_usd: data.monto_usd || (data.producto === 'combo' ? 29.99 : 19.99),
+
           estado: 'pendiente',
           created_at: new Date().toISOString()
         })
@@ -496,7 +506,8 @@ class SupabaseService {
         .from('libro_compras')
         .select('*')
         .eq('subscriber_id', subscriberId)
-        .in('estado', ['pendiente', 'verificando'])
+        // ✅ PASO 5 — Ajustar búsqueda de compra pendiente
+        .in('estado', ['pendiente', 'comprobante_recibido', 'verificando'])
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -517,10 +528,11 @@ class SupabaseService {
     try {
       const { error } = await this.client
         .from('libro_compras')
+        // ✅ PASO 4 — Corregir comprobante (MUY IMPORTANTE)
         .update({
           comprobante_url: comprobanteUrl,
-          estado: 'verificando',
-          fecha_pago: new Date().toISOString()
+          estado: 'comprobante_recibido',
+          fecha_comprobante: new Date().toISOString()
         })
         .eq('id', compraId);
 
@@ -704,10 +716,8 @@ class SupabaseService {
   }
 }
 
-// Exponer cliente Supabase para acceso directo (supabaseService.supabase)
-SupabaseService.prototype.supabase = SupabaseService.prototype.client;
-
 module.exports = new SupabaseService();
+
 
 
 

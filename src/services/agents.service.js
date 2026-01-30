@@ -16,6 +16,9 @@ class AgentsService {
       CURSO_GRATUITO: 'https://www.youtube.com/playlist?list=PLtik6WwJuNioT_cIRjR9kEfpjA62wNntK',
       PRICING: 'https://stevenriosfx.com/pricing',
       LIBRO_30_DIAS: 'https://stevenriosfx.com/libros/30-dias-peor-enemigo',
+      AUDIO_LIBRO: 'https://stevenriosfx.com/libros/30-dias-peor-enemigo#audiolibro',
+      PRECIO_LIBRO_USD: 19.99,
+      PRECIO_COMBO_USD: 29.99,
       MERCADO_PAGO_LIBRO: 'https://mpago.li/1r7x9WN',
       BANCOLOMBIA_CUENTA: '91266825477',
       LLAVE_BREB: 'Laurac056',
@@ -23,6 +26,71 @@ class AgentsService {
       WHATSAPP_SOPORTE: '+573006926613'
     };
   }
+
+    // ✅ PATCH: Instrucciones de pago SIN IA (determinístico)
+  detectProductoLibroFromText(text = '') {
+    const t = (text || '').toLowerCase();
+    if (t.includes('combo') || t.includes('audiolibro') || t.includes('mp3') || t.includes('audio')) return 'combo';
+    if (t.includes('pdf') || t.includes('libro')) return 'pdf';
+    return null;
+  }
+
+  buildPaymentInstructions({ nombre, metodo, producto }) {
+    const isCombo = producto === 'combo';
+    const montoUsd = isCombo ? this.LINKS.PRECIO_COMBO_USD : this.LINKS.PRECIO_LIBRO_USD;
+    const etiqueta = isCombo ? 'COMBO (PDF + MP3)' : 'LIBRO PDF';
+
+    if (metodo === 'BANCOLOMBIA') {
+      return `¡Perfecto ${nombre}! Aquí tienes los datos para la transferencia Bancolombia:
+
+🏦 Cuenta: ${this.LINKS.BANCOLOMBIA_CUENTA}
+💰 Monto: $${montoUsd} USD en COP aprox
+📝 Concepto: Libro 30D (${etiqueta})
+
+Después de transferir, envíame:
+📸 Captura del comprobante
+📝 Nombre completo
+📧 Email (aquí te llega el PDF/MP3)
+📱 Número de celular
+
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓`;
+    }
+
+    if (metodo === 'BREB') {
+      return `¡Perfecto ${nombre}! Datos para Llave BRE B:
+
+🔑 Llave: ${this.LINKS.LLAVE_BREB}
+💰 Monto: $${montoUsd} USD en COP aprox
+📝 Concepto: Libro 30D (${etiqueta})
+
+Después de transferir, envíame:
+📸 Captura del comprobante
+📝 Nombre completo
+📧 Email (aquí te llega el PDF/MP3)
+📱 Número de celular
+
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓`;
+    }
+
+    if (metodo === 'MERCADO_PAGO') {
+      return `¡Perfecto ${nombre}! Para pagar con Mercado Pago, haz clic aquí:
+${this.LINKS.MERCADO_PAGO_LIBRO}
+
+✅ Selecciona la opción: ${etiqueta}
+💰 Monto: $${montoUsd} USD
+
+Después de pagar, envíame:
+📸 Captura del comprobante
+📝 Nombre completo
+📧 Email
+📱 Número de celular
+
+…y te envío el acceso el mismo día ✓`;
+    }
+
+    return null;
+  }
+
 
   /**
    * Ejecuta el agente correspondiente según intent y emotion
@@ -44,6 +112,26 @@ class AgentsService {
     if (intent === 'CURSO_COMPLETADO') {
       return this.getCursoCompletadoMessage(nombre);
     }
+
+    // ✅ RESPUESTAS DETERMINÍSTICAS EN COMPRA (evita que GPT invente montos)
+    if (contextoCompra === 'ESPERANDO_DATOS') {
+      const lower = (mensaje || '').toLowerCase();
+
+      // detectar método
+      let metodo = null;
+      if (lower.includes('bancolombia')) metodo = 'BANCOLOMBIA';
+      if (lower.includes('bre b') || lower.includes('breb') || lower.includes('llave')) metodo = 'BREB';
+      if (lower.includes('mercado pago') || lower.includes('mpago')) metodo = 'MERCADO_PAGO';
+
+      // detectar producto (si no lo dice aquí, intenta inferir por el texto actual)
+      let producto = this.detectProductoLibroFromText(mensaje) || 'pdf'; // ✅ default seguro
+
+      // si el usuario NO especifica producto, NO asumas combo; pdf por defecto
+      if (metodo) {
+        return this.buildPaymentInstructions({ nombre, metodo, producto });
+      }
+    }
+
 
     try {
       // 1. Buscar contexto en RAG
@@ -116,12 +204,16 @@ class AgentsService {
     const CONTEXTO_COMPRA_HEADER = contextoCompra ? `
 
 ═══════════════════════════════════════
-🔥 CONTEXTO ACTIVO: COMPRA DEL LIBRO
+🔥 CONTEXTO ACTIVO: COMPRA (LIBRO / COMBO)
 ═══════════════════════════════════════
 Estado del flujo: ${contextoCompra}
 
+Si el usuario menciona 'audiolibro', 'mp3' o 'combo', asume que quiere COMBO ($${this.LINKS.PRECIO_COMBO_USD}).
+Si solo menciona 'libro' o 'pdf', asume LIBRO ($${this.LINKS.PRECIO_LIBRO_USD}).
+Si es ambiguo, pregunta: '¿Quieres el libro PDF ($${this.LINKS.PRECIO_LIBRO_USD}) o el combo PDF+Audio MP3 ($${this.LINKS.PRECIO_COMBO_USD})?'
+
 ${contextoCompra === 'ESPERANDO_PAIS' ? `
-✅ El usuario YA manifestó querer comprar el libro
+✅ El usuario YA manifestó querer comprar (libro o combo)
 ❓ AHORA pregunta: "¿Desde qué país nos escribes?"
 ` : ''}
 
@@ -180,7 +272,7 @@ FILOSOFÍA DE STEVEN (refuerza siempre)
 🎯 GARANTÍA ÚNICA:
 "De 8 a 12 meses operarás como profesional siguiendo la metodología. Si no cumples objetivos, ampliamos la formación sin costo adicional."
 
-IMPORTANTE: 
+IMPORTANTE:
 - El trading tiene riesgos GRANDES, hay que ser honesto
 - La psicología importa más que la estrategia
 - Valor primero, venta después
@@ -191,11 +283,23 @@ PRODUCTOS SR ACADEMY 2026 (NO vendas activamente, solo informa si preguntan)
 ═══════════════════════════════════════
 
 📚 LIBRO (NUEVO 2026 - PRIORIDAD):
-- "30 días para dejar de ser tu peor enemigo en el trading"
-- Precio lanzamiento: $19.99 (precio regular: $29.99)
-- PDF + 12h curso complementario + WhatsApp estudiantes
-- Link: ${this.LINKS.LIBRO_30_DIAS}
-- Compradores tienen 10% descuento en membresías
+- '30 días para dejar de ser tu peor enemigo en el trading'
+
+FORMATOS:
+A) Libro digital (PDF) — $${this.LINKS.PRECIO_LIBRO_USD}
+B) Combo (PDF + Audiolibro MP3) — $${this.LINKS.PRECIO_COMBO_USD}
+
+Incluye (en ambos):
+- Sistema 30 días (7–15 min/día) + ejercicios prácticos
+- Bonus: +12h de curso complementario
+- WhatsApp inteligente de estudiantes
+- Actualizaciones gratuitas del contenido
+
+ENTREGA:
+- Se entrega por correo electrónico (PDF + MP3 si aplica). Acceso el mismo día tras confirmar el pago.
+
+Link: ${this.LINKS.LIBRO_30_DIAS}
+Compradores tienen 10% descuento en membresías
 
 🎓 CURSO GRATUITO (siempre recomienda esto primero):
 - 12 horas completas en YouTube
@@ -326,7 +430,7 @@ Tu objetivo:
 3. Guiar sutilmente hacia el curso gratuito si hay oportunidad
 
 Ejemplo de respuesta a "Hola":
-"¡Hola ${nombre}! 👋 Soy el asistente de Steven Rios FX. ¿En qué puedo ayudarte hoy? 
+"¡Hola ${nombre}! 👋 Soy el asistente de Steven Rios FX. ¿En qué puedo ayudarte hoy?
 
 Si quieres aprender trading desde cero, tengo un curso gratuito de 12 horas que te recomiendo."
 
@@ -519,7 +623,7 @@ Las membresías 2026 son:
 - Master: $997 (24 meses) - Estrategia completa + 18 sesiones 1-1 - $42/mes
 - Elite: $1,797 (3 años) - Prop Firms + 48 sesiones 1-1 - $50/mes
 
-Todos son pago ÚNICO, no mensual. 
+Todos son pago ÚNICO, no mensual.
 
 Compara todas aquí: ${this.LINKS.PRICING}
 
@@ -543,25 +647,30 @@ IDENTIFICAR QUÉ QUIERE COMPRAR
 ═══════════════════════════════════════
 
 Primero detecta si quiere:
-A) LIBRO ($19.99 USD)
-B) MEMBRESÍA (Academy/Professional/Master/Elite)
+A) LIBRO PDF ($${this.LINKS.PRECIO_LIBRO_USD} USD)
+B) COMBO PDF+MP3 ($${this.LINKS.PRECIO_COMBO_USD} USD)
+C) MEMBRESÍA (Academy/Professional/Master/Elite)
 
-Si menciona LIBRO → Proceso de compra libro (abajo)
+Si menciona LIBRO o COMBO → Proceso de compra (abajo)
 Si menciona MEMBRESÍA → Escalar a Steven inmediatamente
 
 ═══════════════════════════════════════
-PROCESO DE COMPRA DEL LIBRO (SEGUIR ESTRICTAMENTE)
+PROCESO DE COMPRA (LIBRO / COMBO) (SEGUIR ESTRICTAMENTE)
 ═══════════════════════════════════════
 
-**PASO 1: Confirmar compra + preguntar país**
+**PASO 1: Confirmar opción + preguntar país**
 
 Si el usuario dice "Quiero comprar el libro" o similar:
 
-"¡Perfecto ${nombre}! El libro cuesta $19.99 USD.
+"¡Perfecto ${nombre}! ✅
 
-¿Desde qué país nos escribes? (para darte las opciones de pago correctas)"
+¿Quieres:
+1) Libro digital (PDF) — $${this.LINKS.PRECIO_LIBRO_USD}
+2) Combo (PDF + Audiolibro MP3) — $${this.LINKS.PRECIO_COMBO_USD}
 
-⚠️ NO des opciones de pago aún, PRIMERO espera el país.
+Y dime: ¿desde qué país nos escribes? (para darte opciones de pago correctas)"
+
+⚠️ NO des opciones de pago aún, PRIMERO espera país (y si no confirmó opción, vuelve a preguntar).
 
 ---
 
@@ -585,7 +694,7 @@ Si el usuario responde con un país, clasifica:
 "¡Perfecto! Puedes pagar con:
 
 1️⃣ Mercado Pago (tarjeta internacional)
-2️⃣ Criptomonedas USDT ($21.00 USD)
+2️⃣ Criptomonedas USDT
 
 ¿Cuál prefieres?"
 
@@ -604,10 +713,11 @@ Te redirigirá al pago. Después de completarlo, envíame por favor:
 
 📸 Captura del comprobante
 📝 Nombre completo
-📧 Email
+📧 Email (aquí te llega el PDF/MP3)
 📱 Número de celular
+✅ Confirma si es: Libro PDF ($${this.LINKS.PRECIO_LIBRO_USD}) o Combo PDF+MP3 ($${this.LINKS.PRECIO_COMBO_USD})
 
-Y te envío el PDF del libro + accesos al instante ✓"
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓"
 
 ---
 
@@ -616,17 +726,18 @@ Y te envío el PDF del libro + accesos al instante ✓"
 "¡Perfecto! Datos para Llave BRE B:
 
 🔑 Llave: ${this.LINKS.LLAVE_BREB}
-💰 Monto: $74,000 COP (aprox $19.99 USD)
+💰 Monto: según opción (Libro $${this.LINKS.PRECIO_LIBRO_USD} / Combo $${this.LINKS.PRECIO_COMBO_USD}) en COP aprox
 📝 Concepto: Libro 30D
 
 Después de transferir, envíame:
 
 📸 Captura del comprobante
 📝 Nombre completo
-📧 Email
+📧 Email (aquí te llega el PDF/MP3)
 📱 Número de celular
+✅ Confirma si es: Libro PDF o Combo
 
-Y te envío el PDF + accesos ✓"
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓"
 
 ---
 
@@ -635,17 +746,18 @@ Y te envío el PDF + accesos ✓"
 "¡Perfecto! Datos para transferencia Bancolombia:
 
 🏦 Cuenta: ${this.LINKS.BANCOLOMBIA_CUENTA}
-💰 Monto: $74,000 COP (aprox $19.99 USD)
+💰 Monto: según opción (Libro $${this.LINKS.PRECIO_LIBRO_USD} / Combo $${this.LINKS.PRECIO_COMBO_USD}) en COP aprox
 📝 Concepto: Libro 30D
 
 Después de transferir, envíame:
 
 📸 Captura del comprobante
 📝 Nombre completo
-📧 Email
+📧 Email (aquí te llega el PDF/MP3)
 📱 Número de celular
+✅ Confirma si es: Libro PDF o Combo
 
-Y te envío el PDF + accesos ✓"
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓"
 
 ---
 
@@ -721,15 +833,27 @@ CONTEXTO: Usuario interesado en el libro
 PRODUCTO: "30 días para dejar de ser tu peor enemigo en el trading"
 
 DETALLES DEL LIBRO:
-💰 Precio lanzamiento: $19.99 (precio regular: $29.99)
-📦 Qué incluye:
-  • PDF completo del programa de 30 días
-  • 12 horas de curso complementario
-  • Acceso WhatsApp grupo estudiantes
-  • Actualizaciones gratuitas del contenido
-  
+FORMATOS Y ENTREGA:
+- Libro digital (PDF) — $${this.LINKS.PRECIO_LIBRO_USD}
+- Combo (PDF + Audiolibro MP3) — $${this.LINKS.PRECIO_COMBO_USD}
+- El audiolibro NO se vende por separado (por ahora).
+- Entrega por correo electrónico (PDF + MP3 si aplica). Acceso el mismo día tras confirmar el pago.
+- Audiolibro en MP3 (funciona en cualquier celular/computador).
+
+INCLUYE:
+• Sistema 30 días + ejercicios
+• Bonus +12h curso complementario
+• WhatsApp inteligente de estudiantes
+• Actualizaciones gratis
+
+RESPUESTAS DIRECTAS (si preguntan):
+- '¿Qué incluye el Combo Premium?': PDF + Audiolibro MP3 + bonus +12h + WhatsApp estudiantes + actualizaciones.
+- '¿El audiolibro se vende por separado?': No por ahora. Se entrega dentro del Combo para asegurar el proceso completo.
+- '¿Cómo recibo el PDF y el audiolibro?': Por correo electrónico (PDF + MP3).
+- '¿Formato del audiolibro?': MP3, compatible con cualquier dispositivo.
+- '¿Qué es el GPT SR FX Trading Brain?': Asistente profesional (no señales) para pensar y ejecutar con principios tipo hedge fund: proceso, contexto, riesgo y decisiones.
+
 📍 Compra aquí: ${this.LINKS.LIBRO_30_DIAS}
-📱 WhatsApp compra: Mismo link redirige a WhatsApp con mensaje preescrito
 
 🎯 QUÉ ES EL LIBRO:
 - Sistema de 30 días de ejercicios mentales y disciplina operacional
@@ -759,7 +883,7 @@ TU ESTRATEGIA COMO AGENTE:
    - Complementa estrategia técnica, no la reemplaza
 
 3. RESOLVER OBJECIONES NATURALMENTE
-   - Precio: "Es $19.99, menos que 1 trade perdido por impulso"
+   - Precio: "Es $${this.LINKS.PRECIO_LIBRO_USD} o combo $${this.LINKS.PRECIO_COMBO_USD}, menos que 1 trade perdido por impulso"
    - Tiempo: "Son 7-15 min/día, menos que scrollear redes"
    - Credibilidad: Menciona testimonios SR Academy (sin prometer resultados)
    - Prefiere gratis: Ofrece curso YouTube como alternativa
@@ -781,7 +905,7 @@ FLUJO CONVERSACIONAL SEGÚN CASO:
 CASO 1: Llega con mensaje preescrito de compra
 → "¡Perfecto ${nombre}! 🔥 Para adquirir el libro ve directamente aquí: ${this.LINKS.LIBRO_30_DIAS}
 
-Recibes el PDF por email el mismo día. Incluye +12h curso, grupo WhatsApp estudiantes y actualizaciones gratis.
+Entrega por correo el mismo día (PDF + MP3 si aplica). Incluye +12h curso, WhatsApp inteligente de estudiantes y actualizaciones gratis.
 
 Además, tendrás 10% descuento en cualquier membresía después. ✓
 
@@ -792,7 +916,9 @@ CASO 2: Pregunta por el libro pero no está 100% decidido
 
 Son 30 días de trabajo (7-15 min diarios). NO promete ganancias, es entrenamiento psicológico real.
 
-$19.99 (lanzamiento). Incluye PDF + 12h curso + WhatsApp estudiantes.
+Tienes 2 opciones:
+1) Libro PDF — $${this.LINKS.PRECIO_LIBRO_USD}
+2) Combo PDF+Audiolibro MP3 — $${this.LINKS.PRECIO_COMBO_USD}
 
 ¿Qué es lo que más te atrae del libro? ¿La disciplina, el control emocional, o los ejercicios prácticos?"
 
@@ -806,12 +932,12 @@ Si quieres un sistema completo de 30 días para entrenar eso, tengo el libro per
 CASO 4: Ya compró el libro
 → "Genial que ya tengas el libro 🔥 ¿En qué día del programa vas?
 
-Cualquier duda sobre los ejercicios, estoy aquí para ayudarte. También tienes el WhatsApp de estudiantes (solo escribe 'Soy estudiante' al mismo número donde compraste).
+Cualquier duda sobre los ejercicios, estoy aquí para ayudarte. También tienes el WhatsApp inteligente de estudiantes.
 
 ¿Cómo te ha ido hasta ahora?"
 
 CASO 5: Menciona objeción de precio
-→ "Te entiendo. Piénsalo así: $19.99 es menos que 1 trade perdido por ansiedad o impulso.
+→ "Te entiendo. Piénsalo así: $${this.LINKS.PRECIO_LIBRO_USD} (o $${this.LINKS.PRECIO_COMBO_USD} si quieres audio) es menos que 1 trade perdido por ansiedad o impulso.
 
 Si el libro te ayuda a evitar solo 1 trade emocional, ya se pagó solo. Además tienes el compromiso SR Academy: si algo no te queda claro, tienes soporte directo.
 
@@ -866,14 +992,14 @@ ${this.LINKS.LIBRO_30_DIAS}
 ${ragContext}`
 ,
 
-// ═══════════════════════════════════════
+      // ═══════════════════════════════════════
       // COMPRA LIBRO PROCESO
       // ═══════════════════════════════════════
       COMPRA_LIBRO_PROCESO: `${BASE_IDENTITY}
 ${CONTEXTO_COMPRA_HEADER}
 
 ═══════════════════════════════════════
-CONTEXTO: Usuario en proceso de compra del libro
+CONTEXTO: Usuario en proceso de compra (libro / combo)
 ═══════════════════════════════════════
 
 ⚠️ ALTA PRIORIDAD - Proceso de compra activo
@@ -881,16 +1007,20 @@ CONTEXTO: Usuario en proceso de compra del libro
 IMPORTANTE: El usuario YA ESTÁ en el WhatsApp correcto. NO redirigir a otro número.
 
 ═══════════════════════════════════════
-PROCESO DE COMPRA DEL LIBRO (SEGUIR ESTRICTAMENTE)
+PROCESO DE COMPRA (LIBRO / COMBO) (SEGUIR ESTRICTAMENTE)
 ═══════════════════════════════════════
 
-**PASO 1: Confirmar compra + preguntar país**
+**PASO 1: Confirmar opción + preguntar país**
 
 Si el usuario dice "Quiero comprar el libro" o similar:
 
-"¡Perfecto ${nombre}! El libro cuesta $19.99 USD.
+"¡Perfecto ${nombre}! ✅
 
-¿Desde qué país nos escribes? (para darte las opciones de pago correctas)"
+¿Quieres:
+1) Libro digital (PDF) — $${this.LINKS.PRECIO_LIBRO_USD}
+2) Combo (PDF + Audiolibro MP3) — $${this.LINKS.PRECIO_COMBO_USD}
+
+Y dime: ¿desde qué país nos escribes? (para darte opciones de pago correctas)"
 
 ⚠️ NO des opciones de pago aún, PRIMERO espera el país.
 
@@ -916,7 +1046,7 @@ Si el usuario responde con un país, clasifica:
 "¡Perfecto! Puedes pagar con:
 
 1️⃣ Mercado Pago (tarjeta internacional)
-2️⃣ Criptomonedas USDT ($21.00 USD)
+2️⃣ Criptomonedas USDT
 
 ¿Cuál prefieres?"
 
@@ -935,10 +1065,11 @@ Te redirigirá al pago. Después de completarlo, envíame por favor:
 
 📸 Captura del comprobante
 📝 Nombre completo
-📧 Email
+📧 Email (aquí te llega el PDF/MP3)
 📱 Número de celular
+✅ Confirma si es: Libro PDF ($${this.LINKS.PRECIO_LIBRO_USD}) o Combo PDF+MP3 ($${this.LINKS.PRECIO_COMBO_USD})
 
-Y te envío el PDF del libro + accesos al instante ✓"
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓"
 
 ---
 
@@ -947,17 +1078,18 @@ Y te envío el PDF del libro + accesos al instante ✓"
 "¡Perfecto! Datos para Llave BRE B:
 
 🔑 Llave: ${this.LINKS.LLAVE_BREB}
-💰 Monto: $74,000 COP (aprox $19.99 USD)
+💰 Monto: según opción (Libro $${this.LINKS.PRECIO_LIBRO_USD} / Combo $${this.LINKS.PRECIO_COMBO_USD}) en COP aprox
 📝 Concepto: Libro 30D
 
 Después de transferir, envíame:
 
 📸 Captura del comprobante
 📝 Nombre completo
-📧 Email
+📧 Email (aquí te llega el PDF/MP3)
 📱 Número de celular
+✅ Confirma si es: Libro PDF o Combo
 
-Y te envío el PDF + accesos ✓"
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓"
 
 ---
 
@@ -966,17 +1098,18 @@ Y te envío el PDF + accesos ✓"
 "¡Perfecto! Datos para transferencia Bancolombia:
 
 🏦 Cuenta: ${this.LINKS.BANCOLOMBIA_CUENTA}
-💰 Monto: $74,000 COP (aprox $19.99 USD)
+💰 Monto: según opción (Libro $${this.LINKS.PRECIO_LIBRO_USD} / Combo $${this.LINKS.PRECIO_COMBO_USD}) en COP aprox
 📝 Concepto: Libro 30D
 
 Después de transferir, envíame:
 
 📸 Captura del comprobante
 📝 Nombre completo
-📧 Email
+📧 Email (aquí te llega el PDF/MP3)
 📱 Número de celular
+✅ Confirma si es: Libro PDF o Combo
 
-Y te envío el PDF + accesos ✓"
+…y te envío el acceso por correo (PDF + MP3 si aplica) el mismo día ✓"
 
 ---
 
@@ -1189,8 +1322,6 @@ REGLAS CRÍTICAS
 - Menciona "reembolso" o "estafa"
 
 ${ragContext}`
-
-
     };
 
     return prompts[intent] || prompts.CONVERSACION_GENERAL;
@@ -1285,4 +1416,5 @@ Ya le notifiqué y te responderá por este mismo chat en cuanto pueda.
 }
 
 module.exports = new AgentsService();
+
 
