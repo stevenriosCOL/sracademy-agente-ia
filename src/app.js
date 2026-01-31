@@ -4,6 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const webhookRoutes = require('./routes/webhook.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
+const webhooksRoutes = require('./routes/webhooks.routes'); // ← NUEVO
 const Logger = require('./utils/logger.util');
 
 const app = express();
@@ -49,11 +50,12 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'running',
     author: 'Steven Rios FX',
-endpoints: {
-  health: 'GET /health',
-  webhook: 'POST /webhook',
-  feedback: 'POST /webhook/feedback-sracademy'
-}
+    endpoints: {
+      health: 'GET /health',
+      webhook: 'POST /webhook',
+      feedback: 'POST /webhook/feedback-sracademy',
+      libroEntrega: 'POST /webhooks/libro-entrega' // ← NUEVO
+    }
   });
 });
 
@@ -63,6 +65,7 @@ endpoints: {
 
 app.use('/webhook', webhookRoutes);
 app.use('/webhook', feedbackRoutes);
+app.use('/webhooks', webhooksRoutes); // ← NUEVO
 
 // =====================
 // MANEJO DE ERRORES 404

@@ -42,6 +42,8 @@ module.exports = {
   // ═══════════════════════════════════════
   RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX) || 50,
   RATE_LIMIT_WINDOW: parseInt(process.env.RATE_LIMIT_WINDOW) || 86400,
+  WEBHOOK_RATE_LIMIT_MAX: parseInt(process.env.WEBHOOK_RATE_LIMIT_MAX) || 10,
+  WEBHOOK_RATE_LIMIT_WINDOW: parseInt(process.env.WEBHOOK_RATE_LIMIT_WINDOW) || 60,
 
   // ═══════════════════════════════════════
   // SR ACADEMY - LINKS Y CONFIG
@@ -49,6 +51,30 @@ module.exports = {
   CURSO_GRATUITO_URL: process.env.CURSO_GRATUITO_URL || 'https://www.youtube.com/playlist?list=PLtik6WwJuNioT_cIRjR9kEfpjA62wNntK',
   MEMBRESIA_URL: process.env.MEMBRESIA_URL || 'https://stevenriosfx.com/ofertadela%C3%B1o',
   WHATSAPP_ACADEMIA: process.env.WHATSAPP_ACADEMIA || '+573142735697',
+  WHATSAPP_SOPORTE: process.env.WHATSAPP_SOPORTE || '+573006926613',
+
+  // ═══════════════════════════════════════
+  // BREVO (Email Marketing)
+  // ═══════════════════════════════════════
+  BREVO_API_KEY: process.env.BREVO_API_KEY,
+  BREVO_API_URL: process.env.BREVO_API_URL || 'https://api.brevo.com/v3',
+  BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL,
+  BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || 'Steven Rios FX',
+  BREVO_TEMPLATE_ENTREGA_PDF: parseInt(process.env.BREVO_TEMPLATE_ENTREGA_PDF) || null,
+  BREVO_LISTA_COMPRADORES: parseInt(process.env.BREVO_LISTA_COMPRADORES) || null,
+
+  // ═══════════════════════════════════════
+  // LIBRO - GOOGLE DRIVE LINKS
+  // ═══════════════════════════════════════
+  LIBRO_PDF_URL: process.env.LIBRO_PDF_URL,
+  LIBRO_COMBO_URL: process.env.LIBRO_COMBO_URL,
+
+  // ═══════════════════════════════════════
+  // LIBRO - CONFIGURACIÓN
+  // ═══════════════════════════════════════
+  SUPABASE_WEBHOOK_SECRET: process.env.SUPABASE_WEBHOOK_SECRET,
+  CODIGO_DESCUENTO_VALIDEZ_DIAS: parseInt(process.env.CODIGO_DESCUENTO_VALIDEZ_DIAS) || 30,
+  MOCK_LIBRO_ENTREGA: process.env.MOCK_LIBRO_ENTREGA === 'true',
 
   // ═══════════════════════════════════════
   // MERCADO PAGO (Opcional - para pagos futuros)

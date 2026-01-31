@@ -714,6 +714,146 @@ class SupabaseService {
       return null;
     }
   }
+    // ═══════════════════════════════════════
+  // LIBRO - MÉTODOS ADICIONALES PARA WEBHOOK
+  // ═══════════════════════════════════════
+
+  async getCompraById(compraId) {
+    try {
+      const { data, error } = await this.client
+        .from('libro_compras')
+        .select('*')
+        .eq('id', compraId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        Logger.error('Error obteniendo compra por ID:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      Logger.error('Error en getCompraById:', error);
+      return null;
+    }
+  }
+
+  async createLibroEmailLog(data) {
+    try {
+      const { error } = await this.client
+        .from('libro_email_logs')
+        .insert({
+          compra_id: data.compra_id,
+          email: data.email,
+          tipo: data.tipo,
+          brevo_message_id: data.brevo_message_id,
+          estado: data.estado,
+          error_mensaje: data.error_mensaje,
+          enviado_at: data.enviado_at || new Date().toISOString()
+        });
+
+      if (error) {
+        Logger.error('Error creando log de email:', error);
+        return false;
+      }
+
+      Logger.info('✅ Email log creado', { compra_id: data.compra_id, tipo: data.tipo });
+      return true;
+    } catch (error) {
+      Logger.error('Error en createLibroEmailLog:', error);
+      return false;
+    }
+  }
+
+  async getLibroEmailLogByCompraTipo(compraId, tipo) {
+    try {
+      const { data, error } = await this.client
+        .from('libro_email_logs')
+        .select('*')
+        .eq('compra_id', compraId)
+        .eq('tipo', tipo)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        Logger.error('Error obteniendo email log:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      Logger.error('Error en getLibroEmailLogByCompraTipo:', error);
+      return null;
+    }
+  }
+
+  async createLibroDescuento(data) {
+    try {
+      const { error } = await this.client
+        .from('libro_descuentos')
+        .insert({
+          compra_id: data.compra_id,
+          codigo: data.codigo,
+          porcentaje: data.porcentaje || 10,
+          valido_hasta: data.valido_hasta
+        });
+
+      if (error) {
+        Logger.error('Error creando descuento:', error);
+        return false;
+      }
+
+      Logger.info('✅ Código de descuento creado', { codigo: data.codigo });
+      return true;
+    } catch (error) {
+      Logger.error('Error en createLibroDescuento:', error);
+      return false;
+    }
+  }
+
+  async getLibroDescuentoByCompra(compraId) {
+    try {
+      const { data, error } = await this.client
+        .from('libro_descuentos')
+        .select('*')
+        .eq('compra_id', compraId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        Logger.error('Error obteniendo descuento:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      Logger.error('Error en getLibroDescuentoByCompra:', error);
+      return null;
+    }
+  }
+
+  async marcarEnvioPdf(compraId, nuevoEstado = 'aprobado') {
+    try {
+      const { error } = await this.client
+        .from('libro_compras')
+        .update({
+          estado: nuevoEstado,
+          fecha_envio_pdf: new Date().toISOString()
+        })
+        .eq('id', compraId);
+
+      if (error) {
+        Logger.error('Error marcando envío PDF:', error);
+        return false;
+      }
+
+      Logger.info('✅ Envío PDF marcado', { compra_id: compraId, estado: nuevoEstado });
+      return true;
+    } catch (error) {
+      Logger.error('Error en marcarEnvioPdf:', error);
+      return false;
+    }
+  }
 }
 
 module.exports = new SupabaseService();
