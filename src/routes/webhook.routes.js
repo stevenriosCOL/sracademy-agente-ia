@@ -27,7 +27,42 @@ router.post('/', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    // ✅ EXTRAER DATOS DE subscriber_data
+    // ═══════════════════════════════════════
+    // ✅ PASO 1: AUTENTICACIÓN MANYCHAT
+    // ═══════════════════════════════════════
+    const manychatSignature = req.headers['x-manychat-signature'];
+    const manychatSecret = config.MANYCHAT_WEBHOOK_SECRET;
+    
+    if (manychatSecret && manychatSecret !== 'undefined') {
+      if (!manychatSignature) {
+        Logger.warn('⚠️ Request sin firma ManyChat');
+        return res.status(401).json({ error: 'Unauthorized - missing signature' });
+      }
+      
+      // Validar firma HMAC-SHA256
+      const crypto = require('crypto');
+      const bodyString = JSON.stringify(req.body);
+      const expectedSignature = crypto
+        .createHmac('sha256', manychatSecret)
+        .update(bodyString)
+        .digest('hex');
+      
+      if (manychatSignature !== expectedSignature) {
+        Logger.warn('⚠️ Firma ManyChat inválida', { 
+          received: manychatSignature.substring(0, 10),
+          expected: expectedSignature.substring(0, 10)
+        });
+        return res.status(401).json({ error: 'Unauthorized - invalid signature' });
+      }
+      
+      Logger.debug('✅ Firma ManyChat válida');
+    } else {
+      Logger.warn('⚠️ MANYCHAT_WEBHOOK_SECRET no configurado - autenticación deshabilitada');
+    }
+
+    // ═══════════════════════════════════════
+    // ✅ PASO 2: EXTRAER Y VALIDAR DATOS
+    // ═══════════════════════════════════════
     const data = req.body;
 
     const subscriber_id = data.id || data.subscriber_id;
@@ -47,6 +82,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'subscriber_id es requerido' });
     }
 
+    // ═══════════════════════════════════════
+    // ✅ PASO 3: RATE LIMITING (MOVIDO AQUÍ)
+    // ═══════════════════════════════════════
+    const rateLimitResult = await rateLimitService.checkRateLimit(subscriber_id);
+
+    if (!rateLimitResult.allowed) {
+      const limitMessage = `Has alcanzado el límite de mensajes por hoy. Intenta mañana o escríbenos al WhatsApp: ${LINKS.WHATSAPP_SOPORTE}`;
+      Logger.warn('❌ Rate limit excedido', { subscriber_id });
+      return res.json({ response: limitMessage });
+    }
+
     const nombre = first_name || 'Trader';
     let mensaje = last_input_text;
 
@@ -57,6 +103,7 @@ router.post('/', async (req, res) => {
         mensaje = mensaje.substring(0, 1000);
       }
     }
+
 
     // ═══════════════════════════════════════════════════════════════
     // DETECTAR SI ES AUDIO
@@ -332,7 +379,7 @@ const datosCapturaResult = await detectarDatosComprador(subscriber_id, mensaje);
 if (datosCapturaResult.detected) {
   // ✅ FIX BUG 3: VALIDAR CONTEXTO DE LIBRO
   const memoryService = require('../services/memory.service');
-  const memoriaReciente = memoryService.getHistory(subscriber_id, 15);
+  const memoriaReciente = await memoryService.getHistory(subscriber_id, 15);
   
   const textoMemoriaValidacion = memoriaReciente
     .map(m => {
@@ -362,7 +409,7 @@ if (datosCapturaResult.detected) {
     });
 
     // Obtener país y método de pago de la memoria
-    const memoriaRecienteInfo = memoryService.getHistory(subscriber_id, 10);
+    const memoriaRecienteInfo = await memoryService.getHistory(subscriber_id, 10);
 
     const textoMemoria = memoriaRecienteInfo
       .map(m => {
@@ -490,16 +537,7 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
   }
 }
 
-    // ═══════════════════════════════════════
-    // RATE LIMITING
-    // ═══════════════════════════════════════
-    const rateLimitResult = await rateLimitService.checkRateLimit(subscriber_id);
 
-    if (!rateLimitResult.allowed) {
-      const limitMessage = `Has alcanzado el límite de mensajes por hoy. Intenta mañana o escríbenos al WhatsApp: ${LINKS.WHATSAPP_SOPORTE}`;
-      Logger.warn('❌ Rate limit excedido', { subscriber_id });
-      return res.json({ response: limitMessage });
-    }
 
     // ═══════════════════════════════════════
     // CLASIFICACIÓN IA
@@ -517,7 +555,7 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
     let productoLibro = null; // 'pdf' | 'combo'
 
     const memoryService = require('../services/memory.service');
-    const memoriaReciente = memoryService.getHistory(subscriber_id, 12);
+    const memoriaReciente = await memoryService.getHistory(subscriber_id, 12);
 
     const ultimosMensajes = memoriaReciente
       .map(m => {
@@ -824,6 +862,23 @@ async function updateLeadStatus(subscriberId, nombre, phone, updates) {
 
 async function saveAnalytics(subscriberId, nombre, categoria, mensaje, respuesta, fueEscalado, startTime, idioma = 'es', emotion = 'NEUTRAL') {
   try {
+    // ✅ AGREGAR: Calcular heat score
+    const scoringService = require('../services/scoring.service');
+    const lead = await supabaseService.getLead(subscriberId);
+    
+    const heatScore = scoringService.calculateHeatScore(
+      lead || { updated_at: new Date() },
+      { categoria, emocion: emotion }
+    );
+    
+    const priority = scoringService.getPriority(heatScore);
+    
+    Logger.info('🔥 Heat Score calculado', { 
+      subscriberId, 
+      score: heatScore, 
+      priority 
+    });
+
     await supabaseService.saveAnalytics({
       subscriber_id: subscriberId,
       nombre_cliente: nombre,
@@ -835,6 +890,18 @@ async function saveAnalytics(subscriberId, nombre, categoria, mensaje, respuesta
       duracion_ms: Date.now() - startTime,
       idioma: idioma
     });
+    
+    // ✅ AGREGAR: Actualizar heat score en lead
+    if (lead) {
+      await supabaseService.upsertLead({
+        subscriber_id: subscriberId,
+        first_name: nombre,
+        heat_score: heatScore,
+        ultima_interaccion: new Date().toISOString(),
+        total_mensajes: (lead.total_mensajes || 0) + 1
+      });
+    }
+    
   } catch (error) {
     Logger.error('Error guardando analytics:', error);
   }

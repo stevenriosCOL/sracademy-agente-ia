@@ -76,6 +76,10 @@ module.exports = {
   CODIGO_DESCUENTO_VALIDEZ_DIAS: parseInt(process.env.CODIGO_DESCUENTO_VALIDEZ_DIAS) || 30,
   MOCK_LIBRO_ENTREGA: process.env.MOCK_LIBRO_ENTREGA === 'true',
 
+  // Webhook Security
+MANYCHAT_WEBHOOK_SECRET: process.env.MANYCHAT_WEBHOOK_SECRET,
+SUPABASE_WEBHOOK_SECRET: process.env.SUPABASE_WEBHOOK_SECRET,
+
   // ═══════════════════════════════════════
   // MERCADO PAGO (Opcional - para pagos futuros)
   // ═══════════════════════════════════════

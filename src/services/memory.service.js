@@ -1,55 +1,78 @@
+const supabaseService = require('./supabase.service');
 const Logger = require('../utils/logger.util');
 
 /**
- * Servicio de memoria conversacional por subscriber_id
- * Almacena las últimas N interacciones en memoria
+ * Servicio de memoria conversacional PERSISTENTE
+ * Almacena en Supabase + cache local en RAM
  */
 class MemoryService {
   constructor() {
-    this.conversations = new Map();
-    this.maxMessagesPerUser = 10; // Mantener últimas 10 interacciones
+    // Cache local para reducir queries a Supabase
+    this.cache = new Map();
+    this.CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+    this.maxMessagesPerUser = 20; // Aumentado a 20 (antes era 10)
   }
 
   /**
-   * Obtiene el historial de conversación de un usuario
+   * Obtiene el historial de conversación (Supabase + cache)
    */
-  getHistory(subscriberId) {
-    if (!this.conversations.has(subscriberId)) {
+  async getHistory(subscriberId, limit = 20) {
+    try {
+      const cacheKey = `session_${subscriberId}`;
+      
+      // Intentar desde cache primero
+      if (this.cache.has(cacheKey)) {
+        const cached = this.cache.get(cacheKey);
+        if (Date.now() - cached.timestamp < this.CACHE_TTL) {
+          Logger.debug(`💨 Historial desde cache para ${subscriberId}`);
+          return cached.data;
+        }
+      }
+      
+      // Obtener desde Supabase (persistente)
+      const history = await supabaseService.getMemory(subscriberId, limit);
+      
+      // Cachear resultado
+      this.cache.set(cacheKey, {
+        data: history,
+        timestamp: Date.now()
+      });
+      
+      Logger.debug(`💾 Historial desde Supabase para ${subscriberId}: ${history.length} mensajes`);
+      return history;
+      
+    } catch (error) {
+      Logger.error('Error obteniendo historial:', error);
       return [];
     }
-
-    return this.conversations.get(subscriberId);
   }
 
   /**
-   * Agrega un mensaje al historial
+   * Agrega un mensaje al historial (Supabase + cache)
    */
-  addMessage(subscriberId, role, content) {
-    if (!this.conversations.has(subscriberId)) {
-      this.conversations.set(subscriberId, []);
+  async addMessage(subscriberId, role, content) {
+    try {
+      // Guardar en Supabase (persistente)
+      await supabaseService.saveMemory(subscriberId, role, content);
+      
+      // Invalidar cache para forzar refresh
+      const cacheKey = `session_${subscriberId}`;
+      this.cache.delete(cacheKey);
+      
+      Logger.debug(`💾 Mensaje guardado en Supabase para ${subscriberId}: ${role}`);
+      return true;
+      
+    } catch (error) {
+      Logger.error('Error guardando mensaje:', error);
+      return false;
     }
-
-    const history = this.conversations.get(subscriberId);
-    
-    history.push({
-      role,
-      content,
-      timestamp: new Date().toISOString()
-    });
-
-    // Mantener solo los últimos N mensajes
-    if (history.length > this.maxMessagesPerUser * 2) {
-      history.splice(0, history.length - (this.maxMessagesPerUser * 2));
-    }
-
-    Logger.debug(`Memoria actualizada para ${subscriberId}: ${history.length} mensajes`);
   }
 
   /**
    * Formatea el historial para OpenAI
    */
-  formatHistoryForOpenAI(subscriberId) {
-    const history = this.getHistory(subscriberId);
+  async formatHistoryForOpenAI(subscriberId) {
+    const history = await this.getHistory(subscriberId);
     
     return history.map(msg => ({
       role: msg.role,
@@ -58,35 +81,40 @@ class MemoryService {
   }
 
   /**
-   * Limpia el historial de un usuario
+   * Limpia el historial de un usuario (cache + Supabase)
    */
-  clearHistory(subscriberId) {
-    this.conversations.delete(subscriberId);
-    Logger.debug(`Memoria limpiada para ${subscriberId}`);
+  async clearHistory(subscriberId) {
+    try {
+      const cacheKey = `session_${subscriberId}`;
+      this.cache.delete(cacheKey);
+      
+      // Opcional: también eliminar de Supabase si lo necesitas
+      // (Por ahora solo limpiamos cache, Supabase se limpia automáticamente)
+      
+      Logger.debug(`🧹 Cache limpiado para ${subscriberId}`);
+      return true;
+    } catch (error) {
+      Logger.error('Error limpiando historial:', error);
+      return false;
+    }
   }
 
   /**
-   * Limpia historiales antiguos (cleanup periódico)
+   * Limpia cache antiguo (ejecutar periódicamente)
    */
-  cleanup(maxAgeHours = 24) {
-    const now = new Date();
+  cleanupCache() {
+    const now = Date.now();
     let cleaned = 0;
 
-    for (const [subscriberId, history] of this.conversations.entries()) {
-      if (history.length === 0) continue;
-
-      const lastMessage = history[history.length - 1];
-      const lastTimestamp = new Date(lastMessage.timestamp);
-      const hoursDiff = (now - lastTimestamp) / (1000 * 60 * 60);
-
-      if (hoursDiff > maxAgeHours) {
-        this.conversations.delete(subscriberId);
+    for (const [key, value] of this.cache.entries()) {
+      if (now - value.timestamp > this.CACHE_TTL) {
+        this.cache.delete(key);
         cleaned++;
       }
     }
 
     if (cleaned > 0) {
-      Logger.info(`🧹 Memoria limpiada: ${cleaned} conversaciones antiguas eliminadas`);
+      Logger.info(`🧹 Cache limpiado: ${cleaned} sesiones expiradas`);
     }
   }
 }
@@ -94,9 +122,9 @@ class MemoryService {
 // Instancia singleton
 const memoryService = new MemoryService();
 
-// Cleanup automático cada hora
+// Cleanup de cache cada 10 minutos
 setInterval(() => {
-  memoryService.cleanup();
-}, 60 * 60 * 1000);
+  memoryService.cleanupCache();
+}, 10 * 60 * 1000);
 
 module.exports = memoryService;
