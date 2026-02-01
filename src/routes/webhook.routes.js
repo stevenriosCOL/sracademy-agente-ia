@@ -29,38 +29,7 @@ router.post('/', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    // ═══════════════════════════════════════
-    // ✅ PASO 1: AUTENTICACIÓN MANYCHAT
-    // ═══════════════════════════════════════
-    const manychatSignature = req.headers['x-manychat-signature'];
-    const manychatSecret = config.MANYCHAT_WEBHOOK_SECRET;
-    
-    if (manychatSecret && manychatSecret !== 'undefined') {
-      if (!manychatSignature) {
-        Logger.warn('⚠️ Request sin firma ManyChat');
-        return res.status(401).json({ error: 'Unauthorized - missing signature' });
-      }
-      
-      // Validar firma HMAC-SHA256
-      const crypto = require('crypto');
-      const bodyString = JSON.stringify(req.body);
-      const expectedSignature = crypto
-        .createHmac('sha256', manychatSecret)
-        .update(bodyString)
-        .digest('hex');
-      
-      if (manychatSignature !== expectedSignature) {
-        Logger.warn('⚠️ Firma ManyChat inválida', { 
-          received: manychatSignature.substring(0, 10),
-          expected: expectedSignature.substring(0, 10)
-        });
-        return res.status(401).json({ error: 'Unauthorized - invalid signature' });
-      }
-      
-      Logger.debug('✅ Firma ManyChat válida');
-    } else {
-      Logger.warn('⚠️ MANYCHAT_WEBHOOK_SECRET no configurado - autenticación deshabilitada');
-    }
+
 
     // ═══════════════════════════════════════
     // ✅ PASO 2: EXTRAER Y VALIDAR DATOS
