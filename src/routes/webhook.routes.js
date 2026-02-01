@@ -323,115 +323,172 @@ Si es urgente, Steven te responderá por este mismo chat. Gracias por tu pacienc
       return res.json({ response });
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // DETECTAR DATOS DEL COMPRADOR (nombre + email + celular)
-    // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// DETECTAR DATOS DEL COMPRADOR (nombre + email + celular)
+// ═══════════════════════════════════════════════════════════════
 
-    const datosCapturaResult = await detectarDatosComprador(subscriber_id, mensaje);
+const datosCapturaResult = await detectarDatosComprador(subscriber_id, mensaje);
 
-    if (datosCapturaResult.detected) {
-      Logger.info('📋 Datos del comprador detectados', {
-        subscriber_id,
-        nombre: datosCapturaResult.nombre,
-        email: datosCapturaResult.email
+if (datosCapturaResult.detected) {
+  // ✅ FIX BUG 3: VALIDAR CONTEXTO DE LIBRO
+  const memoryService = require('../services/memory.service');
+  const memoriaReciente = memoryService.getHistory(subscriber_id, 15);
+  
+  const textoMemoriaValidacion = memoriaReciente
+    .map(m => {
+      const texto = typeof m === 'string' ? m : (m.content || m.message || '');
+      return (texto || '').toLowerCase();
+    })
+    .join(' ');
+  
+  const mencionaLibroReciente =
+    textoMemoriaValidacion.includes('libro') ||
+    textoMemoriaValidacion.includes('30 días') ||
+    textoMemoriaValidacion.includes('30 dias') ||
+    textoMemoriaValidacion.includes('peor enemigo') ||
+    (textoMemoriaValidacion.includes('comprar') && (
+      textoMemoriaValidacion.includes('pdf') ||
+      textoMemoriaValidacion.includes('combo')
+    ));
+  
+  if (!mencionaLibroReciente) {
+    Logger.info('📋 Datos detectados pero NO en contexto de libro', { subscriber_id });
+    // No hacer nada, dejar que continúe el flujo normal
+  } else {
+    Logger.info('📋 Datos del comprador detectados EN CONTEXTO DE LIBRO', {
+      subscriber_id,
+      nombre: datosCapturaResult.nombre,
+      email: datosCapturaResult.email
+    });
+
+    // Obtener país y método de pago de la memoria
+    const memoriaRecienteInfo = memoryService.getHistory(subscriber_id, 10);
+
+    const textoMemoria = memoriaRecienteInfo
+      .map(m => {
+        const texto = typeof m === 'string' ? m : (m.content || m.message || '');
+        return (texto || '').toLowerCase();
+      })
+      .join(' ');
+
+    // ✅ FIX BUG 4: AGREGAR VENEZUELA Y ECUADOR
+    let pais = null;
+    const paises = {
+      'colombia': 'Colombia',
+      'méxico': 'México',
+      'mexico': 'México',
+      'argentina': 'Argentina',
+      'chile': 'Chile',
+      'perú': 'Perú',
+      'peru': 'Perú',
+      'españa': 'España',
+      'spain': 'España',
+      'venezuela': 'Venezuela',
+      'ecuador': 'Ecuador'
+    };
+
+    for (const [key, value] of Object.entries(paises)) {
+      if (textoMemoria.includes(key)) {
+        pais = value;
+        break;
+      }
+    }
+
+    // Detectar método de pago
+    let metodoPago = null;
+    if (textoMemoria.includes('mercado pago') || textoMemoria.includes('mercadopago')) {
+      metodoPago = 'mercado_pago';
+    } else if (textoMemoria.includes('llave') || textoMemoria.includes('bre b') || textoMemoria.includes('breb')) {
+      metodoPago = 'llave_breb';
+    } else if (textoMemoria.includes('bancolombia')) {
+      metodoPago = 'bancolombia';
+    } else if (textoMemoria.includes('cripto') || textoMemoria.includes('usdt') || textoMemoria.includes('bitcoin')) {
+      metodoPago = 'criptomonedas';
+    }
+
+    if (pais && metodoPago) {
+      // ✅ FIX BUG 2: PREVENIR DUPLICADOS
+      const compraPendiente = await supabaseService.getCompraPendiente(subscriber_id);
+      
+      if (compraPendiente) {
+        Logger.info('⚠️ Ya existe compra pendiente', { 
+          compra_id: compraPendiente.id, 
+          subscriber_id 
+        });
+
+        const response = `Ya tengo tu solicitud de compra registrada ✓
+
+Ahora solo envíame la captura del comprobante de pago 📸`;
+
+        await saveAnalytics(
+          subscriber_id,
+          nombre,
+          'COMPRA_YA_EXISTE',
+          mensaje,
+          response,
+          false,
+          startTime
+        );
+
+        return res.json({ response });
+      }
+
+      // ✅ FIX BUG 1: GUARDAR PRODUCTO CORRECTO
+      const montoUSD = (textoMemoria.includes('combo') ||
+        textoMemoria.includes('premium') ||
+        textoMemoria.includes('audiolibro') ||
+        textoMemoria.includes('audio') ||
+        textoMemoria.includes('mp3'))
+        ? 29.99
+        : 19.99;
+      
+      const productoLibro = montoUSD === 29.99 ? 'combo' : 'pdf';
+
+      // Crear registro en libro_compras
+      const compraCreada = await supabaseService.createCompraLibro({
+        subscriber_id: subscriber_id,
+        nombre_completo: datosCapturaResult.nombre,
+        email: datosCapturaResult.email,
+        celular: datosCapturaResult.celular,
+        pais: pais,
+        metodo_pago: metodoPago,
+        monto_usd: montoUSD,
+        producto: productoLibro
       });
 
-      // Obtener país y método de pago de la memoria
-      const memoryService = require('../services/memory.service');
-      const memoriaReciente = memoryService.getHistory(subscriber_id, 10);
-
-      const textoMemoria = memoriaReciente
-        .map(m => {
-          const texto = typeof m === 'string' ? m : (m.content || m.message || '');
-          return (texto || '').toLowerCase();
-        })
-        .join(' ');
-
-      // Detectar país
-      let pais = null;
-      const paises = {
-        'colombia': 'Colombia',
-        'méxico': 'México',
-        'mexico': 'México',
-        'argentina': 'Argentina',
-        'chile': 'Chile',
-        'perú': 'Perú',
-        'peru': 'Perú',
-        'españa': 'España',
-        'spain': 'España'
-      };
-
-      for (const [key, value] of Object.entries(paises)) {
-        if (textoMemoria.includes(key)) {
-          pais = value;
-          break;
-        }
-      }
-
-      // Detectar método de pago
-      let metodoPago = null;
-      if (textoMemoria.includes('mercado pago') || textoMemoria.includes('mercadopago')) {
-        metodoPago = 'mercado_pago';
-      } else if (textoMemoria.includes('llave') || textoMemoria.includes('bre b') || textoMemoria.includes('breb')) {
-        metodoPago = 'llave_breb';
-      } else if (textoMemoria.includes('bancolombia')) {
-        metodoPago = 'bancolombia';
-      } else if (textoMemoria.includes('cripto') || textoMemoria.includes('usdt') || textoMemoria.includes('bitcoin')) {
-        metodoPago = 'criptomonedas';
-      }
-
-      if (pais && metodoPago) {
-        // ✅ monto según PDF vs COMBO (detectado por memoria)
-        const montoUSD = (textoMemoria.includes('combo') ||
-          textoMemoria.includes('premium') ||
-          textoMemoria.includes('audiolibro') ||
-          textoMemoria.includes('audio') ||
-          textoMemoria.includes('mp3'))
-          ? 29.99
-          : 19.99;
-
-        // Crear registro en libro_compras
-        const compraCreada = await supabaseService.createCompraLibro({
-          subscriber_id: subscriber_id,
-          nombre_completo: datosCapturaResult.nombre,
-          email: datosCapturaResult.email,
-          celular: datosCapturaResult.celular,
-          pais: pais,
+      if (compraCreada) {
+        Logger.info('✅ Compra libro creada', {
+          compra_id: compraCreada.id,
+          subscriber_id,
           metodo_pago: metodoPago,
+          producto: productoLibro,  // ✅ Log del producto correcto
           monto_usd: montoUSD
         });
 
-        if (compraCreada) {
-          Logger.info('✅ Compra libro creada', {
-            compra_id: compraCreada.id,
-            subscriber_id,
-            metodo_pago: metodoPago,
-            monto_usd: montoUSD
-          });
+        // Marcar lead como interesado en libro
+        await supabaseService.markLibroInteresado(subscriber_id);
 
-          // Marcar lead como interesado en libro
-          await supabaseService.markLibroInteresado(subscriber_id);
-
-          const response = `Perfecto ${nombre}! Ya tengo tus datos ✓
+        const response = `Perfecto ${nombre}! Ya tengo tus datos ✓
 
 Ahora envíame la captura del comprobante de pago 📸
 
 Te confirmo la recepción del libro en máximo 30 minutos después de verificar el pago.`;
 
-          await saveAnalytics(
-            subscriber_id,
-            nombre,
-            'DATOS_COMPRADOR_LIBRO',
-            mensaje,
-            response,
-            false,
-            startTime
-          );
+        await saveAnalytics(
+          subscriber_id,
+          nombre,
+          'DATOS_COMPRADOR_LIBRO',
+          mensaje,
+          response,
+          false,
+          startTime
+        );
 
-          return res.json({ response });
-        }
+        return res.json({ response });
       }
     }
+  }
+}
 
     // ═══════════════════════════════════════
     // RATE LIMITING
