@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto'); // ✅ AGREGAR
+const config = require('../config/env.config'); // ✅ AGREGAR
 const rateLimitService = require('../services/ratelimit.service');
 const classifierService = require('../services/classifier.service');
 const agentsService = require('../services/agents.service');
