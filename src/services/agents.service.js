@@ -139,7 +139,7 @@ Después de pagar, envíame:
       const ragContext = ragService.formatContextForAgent(ragResults);
 
       // 2. Obtener historial de memoria
-      const conversationHistory = memoryService.formatHistoryForOpenAI(subscriberId);
+      const conversationHistory = await memoryService.formatHistoryForOpenAI(subscriberId);
 
       // 3. Obtener saludo contextual
       const saludo = getContextualGreeting(idioma);
@@ -157,11 +157,12 @@ Después de pagar, envíame:
       });
 
       // 5. Construir mensajes para OpenAI
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...conversationHistory,
-        { role: 'user', content: mensaje }
-      ];
+const messages = [
+  { role: 'system', content: systemPrompt },
+  ...(Array.isArray(conversationHistory) ? conversationHistory : []),
+  { role: 'user', content: mensaje }
+];
+
 
       // 6. Llamar a GPT-4o
       const temperature = this.getAgentTemperature(intent);
