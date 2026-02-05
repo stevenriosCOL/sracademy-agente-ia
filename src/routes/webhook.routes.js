@@ -585,10 +585,46 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
       Logger.info('📚 CONTEXTO COMPRA LIBRO', { contextoCompra, productoLibro, tienePais, tieneMetodo, tieneDatos });
     }
 
-    // ═══════════════════════════════════════
-    // EJECUTAR AGENTE IA
-    // ═══════════════════════════════════════
+// ═══════════════════════════════════════
+// EJECUTAR AGENTE IA
+// ═══════════════════════════════════════
 let respuesta = null;
+
+// ✅ Guardrail: si el usuario habla de acceso pero NO envía email/usuario_id/token,
+// NO permitir que el agente “adivine” emails del historial.
+const accessHeuristics = /(acceso|login|iniciar sesi[oó]n|entrar|ingresar|contrase[ñn]a|clave|no puedo entrar|no puedo ingresar|no puedo iniciar)/i;
+const hasEmailInMsg = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(mensaje || '');
+const hasUsuarioIdInMsg = /usuario[_\s-]?id/i.test(mensaje || '');
+const isTokenInMsg = /^[A-Za-z0-9]{6,32}$/.test((mensaje || '').trim());
+
+const isAccessNoData =
+  accessHeuristics.test(mensaje || '') &&
+  !hasEmailInMsg &&
+  !hasUsuarioIdInMsg &&
+  !isTokenInMsg;
+
+if (isAccessNoData) {
+  const response = `Hola ${nombre}! Para validar tu acceso necesito uno de estos datos:
+
+1️⃣ Tu email de compra/registro
+2️⃣ Tu usuario_id (o pégalo aquí tal cual)
+
+Y cuéntame qué error te aparece al intentar entrar en www.stevenriosfx.com/signin`;
+
+  await saveAnalytics(
+    subscriber_id,
+    nombre,
+    'SOPORTE_SIN_DATOS',
+    mensaje,
+    response,
+    false,
+    startTime,
+    idioma,
+    emotion
+  );
+
+  return res.json({ response });
+}
 
 // ✅ SOPORTE: disparar Support API cuando haya señal clara (email / usuario_id / token),
 // incluso si el intent NO salió SOPORTE_ESTUDIANTE.
@@ -637,7 +673,6 @@ if (shouldTrySupport) {
   }
 }
 
-
 // ✅ Si NO se resolvió por soporte, sigue normal (NO rompe nada)
 if (!respuesta) {
   respuesta = await agentsService.executeAgent(
@@ -651,6 +686,7 @@ if (!respuesta) {
     contextoCompra
   );
 }
+
 
 
     // ═══════════════════════════════════════
