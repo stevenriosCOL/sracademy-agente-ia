@@ -53,6 +53,12 @@ module.exports = {
   WHATSAPP_ACADEMIA: process.env.WHATSAPP_ACADEMIA || '+573142735697',
   WHATSAPP_SOPORTE: process.env.WHATSAPP_SOPORTE || '+573006926613',
 
+    // ═══════════════════════════════════════
+  // SR ACADEMY - SUPPORT API (Read-only)
+  // ═══════════════════════════════════════
+  SUPPORT_API_URL: process.env.SUPPORT_API_URL,
+  SUPPORT_API_KEY: process.env.SUPPORT_API_KEY,
+
   // ═══════════════════════════════════════
   // BREVO (Email Marketing)
   // ═══════════════════════════════════════

@@ -9,6 +9,8 @@ const supabaseService = require('../services/supabase.service');
 const manychatService = require('../services/manychat.service');
 const { detectLanguage } = require('../utils/language.util');
 const Logger = require('../utils/logger.util');
+const supportApiService = require('../services/support-api.service');
+
 
 // ✅ Whisper service
 const whisperService = require('../services/whisper.service');
@@ -41,6 +43,7 @@ router.post('/', async (req, res) => {
     const last_name = data.last_name || '';
     const phone = data.phone || data.whatsapp_phone;
     const last_input_text = data.last_input_text || data.text;
+    const rawSupportInput = last_input_text;
 
     Logger.info('📥 Datos recibidos de ManyChat', {
       subscriber_id,
@@ -585,16 +588,57 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
     // ═══════════════════════════════════════
     // EJECUTAR AGENTE IA
     // ═══════════════════════════════════════
-    const respuesta = await agentsService.executeAgent(
-      intent,
-      emotion,
-      subscriber_id,
-      nombre,
-      mensaje,
-      idioma,
-      nivel,
-      contextoCompra
-    );
+let respuesta = null;
+
+// ✅ VALIDACIÓN QUIRÚRGICA: SOLO SOPORTE_ESTUDIANTE
+if (intent === 'SOPORTE_ESTUDIANTE') {
+  const supportQuery = extractSupportQuery({ mensaje: rawSupportInput });
+
+  if (supportQuery) {
+    const supportStatus = await supportApiService.fetchUserStatus(supportQuery);
+
+    if (supportStatus?.ok) {
+      respuesta = buildSupportStatusResponse(
+        nombre,
+        supportStatus.data,
+        config.MEMBRESIA_URL || LINKS.PRICING
+      );
+    } else if (supportStatus?.status === 404) {
+      respuesta = `Hola ${nombre}! No encontré un registro con esos datos. ¿Podrías confirmar tu email o tu usuario_id para validar tu acceso?`;
+    } else if (supportStatus?.status === 401) {
+      respuesta = `Hola ${nombre}! En este momento no puedo validar tu acceso. Estoy escalando el caso para ayudarte lo antes posible.`;
+      await notifyAdmin(
+        subscriber_id,
+        nombre,
+        `⚠️ Soporte API respondió 401 (configuración). request_id=${supportStatus?.request_id || 'n/a'}`,
+        'ESCALAMIENTO'
+      );
+    } else if (supportStatus?.status >= 500 || supportStatus?.status === 'timeout') {
+      respuesta = `Hola ${nombre}! No puedo validar tu acceso en este momento. Por favor intenta de nuevo en unos minutos.`;
+      await notifyAdmin(
+        subscriber_id,
+        nombre,
+        `⚠️ Soporte API temporalmente no disponible. request_id=${supportStatus?.request_id || 'n/a'}`,
+        'ESCALAMIENTO'
+      );
+    }
+  }
+}
+
+// ✅ Si NO se resolvió por soporte, sigue normal (NO rompe nada)
+if (!respuesta) {
+  respuesta = await agentsService.executeAgent(
+    intent,
+    emotion,
+    subscriber_id,
+    nombre,
+    mensaje,
+    idioma,
+    nivel,
+    contextoCompra
+  );
+}
+
 
     // ═══════════════════════════════════════
     // NOTIFICACIONES SEGÚN CASO
@@ -775,6 +819,58 @@ function detectLibroMencion(mensaje) {
   const m = mensaje.toLowerCase();
   return keywords.some(kw => m.includes(kw));
 }
+
+function extractSupportQuery({ mensaje }) {
+  if (!mensaje) return null;
+
+  // 1) Email
+  const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const emailMatch = mensaje.match(emailRegex);
+  if (emailMatch) return { param: 'email', value: emailMatch[0] };
+
+  // 2) usuario_id explícito (usuario_id=XXX o "usuario id: XXX")
+  const usuarioIdExplicit = mensaje.match(/usuario[_\s-]?id\s*[:=]\s*([A-Za-z0-9]{4,32})/i)
+    || mensaje.match(/usuario[_\s-]?id\s+([A-Za-z0-9]{4,32})/i);
+  if (usuarioIdExplicit && usuarioIdExplicit[1]) {
+    return { param: 'usuario_id', value: usuarioIdExplicit[1] };
+  }
+
+  // 3) Token alfanumérico suelto (por si el usuario pega solo el ID)
+  // Ejemplo real: VwtacerpMI
+  const trimmed = mensaje.trim();
+  const soloToken = /^[A-Za-z0-9]{6,32}$/.test(trimmed);
+  if (soloToken) {
+    return { param: 'usuario_id', value: trimmed };
+  }
+
+  return null;
+}
+
+function buildSupportStatusResponse(nombre, supportData, planUrl) {
+  const latestMembership = supportData?.latest_membership;
+  const vigencia = latestMembership?.vigencia_efectiva;
+  const planNombre = latestMembership?.nombre_membresia || 'tu plan';
+  const fechaVencimiento = latestMembership?.fecha_vencimiento;
+
+  if (vigencia === 'ACTIVA') {
+    const detalleVencimiento = fechaVencimiento ? ` (vence el ${fechaVencimiento})` : '';
+    return `¡Hola ${nombre}! ✅ Tu acceso está vigente.
+
+Plan: ${planNombre}${detalleVencimiento}
+
+Si aún tienes problemas para iniciar sesión, dime:
+1️⃣ El correo con el que te registraste
+2️⃣ El mensaje exacto que te aparece
+3️⃣ Si estás entrando desde www.stevenriosfx.com/signin`;
+  }
+
+  return `Hola ${nombre}! Tu membresía aparece vencida actualmente.
+
+Para recuperar tu acceso, revisa el plan vigente aquí: ${planUrl}
+
+Si crees que esto es un error, confírmame tu email o usuario_id y lo verifico.`;
+}
+
 
 // ═══════════════════════════════════════
 // MENSAJES PREDEFINIDOS
