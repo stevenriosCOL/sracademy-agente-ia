@@ -595,7 +595,10 @@ let respuesta = null;
 const accessHeuristics = /(acceso|login|iniciar sesi[oó]n|entrar|ingresar|contrase[ñn]a|clave|no puedo entrar|no puedo ingresar|no puedo iniciar)/i;
 const hasEmailInMsg = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(mensaje || '');
 const hasUsuarioIdInMsg = /usuario[_\s-]?id/i.test(mensaje || '');
-const isTokenInMsg = /^[A-Za-z0-9]{6,32}$/.test((mensaje || '').trim());
+const isTokenInMsg =
+  /^[A-Za-z0-9]{8,20}$/.test((mensaje || '').trim()) &&
+  /[A-Za-z]/.test((mensaje || '').trim()) &&
+  !/^\d+$/.test((mensaje || '').trim());
 
 const isAccessNoData =
   accessHeuristics.test(mensaje || '') &&
@@ -630,7 +633,11 @@ Y cuéntame qué error te aparece al intentar entrar en www.stevenriosfx.com/sig
 // incluso si el intent NO salió SOPORTE_ESTUDIANTE.
 const supportQuery = extractSupportQuery({ mensaje: rawSupportInput });
 const supportInput = (rawSupportInput || '').trim();
-const isSoloToken = /^[A-Za-z0-9]{6,32}$/.test(supportInput);
+const isSoloToken =
+  /^[A-Za-z0-9]{8,20}$/.test(supportInput) &&
+  /[A-Za-z]/.test(supportInput) &&
+  !/^\d+$/.test(supportInput);
+
 const startsWithUsuarioId = /^usuario[_\s-]?id\b/i.test(supportInput);
 
 const shouldTrySupport = Boolean(
