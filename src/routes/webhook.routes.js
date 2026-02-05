@@ -590,40 +590,53 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
     // ═══════════════════════════════════════
 let respuesta = null;
 
-// ✅ VALIDACIÓN QUIRÚRGICA: SOLO SOPORTE_ESTUDIANTE
-if (intent === 'SOPORTE_ESTUDIANTE') {
-  const supportQuery = extractSupportQuery({ mensaje: rawSupportInput });
+// ✅ SOPORTE: disparar Support API cuando haya señal clara (email / usuario_id / token),
+// incluso si el intent NO salió SOPORTE_ESTUDIANTE.
+const supportQuery = extractSupportQuery({ mensaje: rawSupportInput });
+const supportInput = (rawSupportInput || '').trim();
+const isSoloToken = /^[A-Za-z0-9]{6,32}$/.test(supportInput);
+const startsWithUsuarioId = /^usuario[_\s-]?id\b/i.test(supportInput);
 
-  if (supportQuery) {
-    const supportStatus = await supportApiService.fetchUserStatus(supportQuery);
+const shouldTrySupport = Boolean(
+  supportQuery &&
+  (
+    intent === 'SOPORTE_ESTUDIANTE' ||
+    isSoloToken ||
+    startsWithUsuarioId ||
+    supportQuery.param === 'email'
+  )
+);
 
-    if (supportStatus?.ok) {
-      respuesta = buildSupportStatusResponse(
-        nombre,
-        supportStatus.data,
-        config.MEMBRESIA_URL || LINKS.PRICING
-      );
-    } else if (supportStatus?.status === 404) {
-      respuesta = `Hola ${nombre}! No encontré un registro con esos datos. ¿Podrías confirmar tu email o tu usuario_id para validar tu acceso?`;
-    } else if (supportStatus?.status === 401) {
-      respuesta = `Hola ${nombre}! En este momento no puedo validar tu acceso. Estoy escalando el caso para ayudarte lo antes posible.`;
-      await notifyAdmin(
-        subscriber_id,
-        nombre,
-        `⚠️ Soporte API respondió 401 (configuración). request_id=${supportStatus?.request_id || 'n/a'}`,
-        'ESCALAMIENTO'
-      );
-    } else if (supportStatus?.status >= 500 || supportStatus?.status === 'timeout') {
-      respuesta = `Hola ${nombre}! No puedo validar tu acceso en este momento. Por favor intenta de nuevo en unos minutos.`;
-      await notifyAdmin(
-        subscriber_id,
-        nombre,
-        `⚠️ Soporte API temporalmente no disponible. request_id=${supportStatus?.request_id || 'n/a'}`,
-        'ESCALAMIENTO'
-      );
-    }
+if (shouldTrySupport) {
+  const supportStatus = await supportApiService.fetchUserStatus(supportQuery);
+
+  if (supportStatus?.ok) {
+    respuesta = buildSupportStatusResponse(
+      nombre,
+      supportStatus.data,
+      config.MEMBRESIA_URL || LINKS.PRICING
+    );
+  } else if (supportStatus?.status === 404) {
+    respuesta = `Hola ${nombre}! No encontré un registro con esos datos. ¿Podrías confirmar tu email o tu usuario_id para validar tu acceso?`;
+  } else if (supportStatus?.status === 401) {
+    respuesta = `Hola ${nombre}! En este momento no puedo validar tu acceso. Estoy escalando el caso para ayudarte lo antes posible.`;
+    await notifyAdmin(
+      subscriber_id,
+      nombre,
+      `⚠️ Soporte API respondió 401 (configuración). request_id=${supportStatus?.request_id || 'n/a'}`,
+      'ESCALAMIENTO'
+    );
+  } else if (supportStatus?.status >= 500 || supportStatus?.status === 'timeout') {
+    respuesta = `Hola ${nombre}! No puedo validar tu acceso en este momento. Por favor intenta de nuevo en unos minutos.`;
+    await notifyAdmin(
+      subscriber_id,
+      nombre,
+      `⚠️ Soporte API temporalmente no disponible. request_id=${supportStatus?.request_id || 'n/a'}`,
+      'ESCALAMIENTO'
+    );
   }
 }
+
 
 // ✅ Si NO se resolvió por soporte, sigue normal (NO rompe nada)
 if (!respuesta) {
