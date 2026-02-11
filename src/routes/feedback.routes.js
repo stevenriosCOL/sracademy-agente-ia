@@ -9,19 +9,36 @@ const Logger = require('../utils/logger.util');
  */
 router.post('/feedback-sracademy', async (req, res) => {
   try {
-    const { subscriber_id, nombre_cliente, calificacion, comentario, categoria_conversacion } = req.body;
+    const { subscriber_id, nombre_cliente, comentario, categoria_conversacion } = req.body;
+
+    // ✅ Alias para evitar 400 por payload distinto
+    const rawRating = req.body.calificacion ?? req.body.rating ?? req.body.score;
+    const rating = parseInt(rawRating, 10);
 
     // Validar campos requeridos
-    if (!subscriber_id || !calificacion) {
+    if (!subscriber_id || rawRating == null) {
+      // ✅ Log mínimo (sin PII completa)
+      Logger.warn('⚠️ Feedback inválido: faltan campos', {
+        has_subscriber_id: Boolean(subscriber_id),
+        has_rating: rawRating != null,
+        keys: Object.keys(req.body || {})
+      });
+
       return res.status(400).json({
         success: false,
-        error: 'subscriber_id y calificacion son requeridos'
+        error: 'subscriber_id y calificacion (o rating/score) son requeridos'
       });
     }
 
     // Validar que calificación esté entre 1 y 5
-    const rating = parseInt(calificacion);
-    if (isNaN(rating) || rating < 1 || rating > 5) {
+    if (Number.isNaN(rating) || rating < 1 || rating > 5) {
+      // ✅ Log mínimo (sin PII completa)
+      Logger.warn('⚠️ Feedback inválido: rating fuera de rango', {
+        subscriber_id_present: true,
+        rawRating: String(rawRating).slice(0, 20),
+        keys: Object.keys(req.body || {})
+      });
+
       return res.status(400).json({
         success: false,
         error: 'La calificación debe ser un número entre 1 y 5'
@@ -37,20 +54,20 @@ router.post('/feedback-sracademy', async (req, res) => {
       categoria_conversacion: categoria_conversacion || 'general'
     });
 
-    Logger.info('✅ Feedback guardado', { 
-      subscriber_id, 
-      calificacion: rating 
+    Logger.info('✅ Feedback guardado', {
+      subscriber_id,
+      calificacion: rating
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: '¡Gracias por tu feedback! Nos ayuda a mejorar. 🙏'
     });
 
   } catch (error) {
     Logger.error('❌ Error guardando feedback:', error);
-    
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
       error: 'Error procesando el feedback'
     });

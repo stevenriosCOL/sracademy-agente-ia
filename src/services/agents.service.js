@@ -138,6 +138,31 @@ Después de pagar, envíame:
       const ragResults = await ragService.searchKnowledge(mensaje);
       const ragContext = ragService.formatContextForAgent(ragResults);
 
+      // ✅ INFO_PRODUCTOS determinístico cuando no hay RAG
+const hasRag = Array.isArray(ragResults) && ragResults.length > 0;
+
+if (intent === 'INFO_PRODUCTOS' && !hasRag) {
+  const response = `Tenemos 4 programas según tu nivel 📚
+
+Primero te recomiendo el curso gratuito de 12 horas:
+${this.LINKS.CURSO_GRATUITO}
+
+Y aquí puedes ver precios y comparar todo:
+${this.LINKS.PRICING}
+
+¿Ya tienes experiencia en trading o empezarías desde cero?`;
+
+  // ✅ Guardar en memoria
+  try {
+    await memoryService.addMessage(subscriberId, 'user', mensaje);
+    await memoryService.addMessage(subscriberId, 'assistant', response);
+  } catch (e) {
+    Logger.warn('⚠️ No se pudo guardar memoria (INFO_PRODUCTOS sin RAG)', { subscriberId });
+  }
+
+  return response;
+}
+
       // 2. Obtener historial de memoria
       const conversationHistory = await memoryService.formatHistoryForOpenAI(subscriberId);
 
@@ -177,8 +202,13 @@ const messages = [
       const response = completion.choices[0].message.content.trim();
 
       // 7. Guardar en memoria
-      memoryService.addMessage(subscriberId, 'user', mensaje);
-      memoryService.addMessage(subscriberId, 'assistant', response);
+try {
+  await memoryService.addMessage(subscriberId, 'user', mensaje);
+  await memoryService.addMessage(subscriberId, 'assistant', response);
+} catch (e) {
+  Logger.warn('⚠️ No se pudo guardar memoria', { subscriberId });
+}
+
 
       Logger.info('✅ Agente SR Academy respondió', {
         intent,
@@ -1338,7 +1368,7 @@ ${ragContext}`
       MEJORAR: 0.6,
       PREGUNTA_TECNICA: 0.3,
       PREGUNTA_PSICOLOGIA: 0.5,
-      INFO_PRODUCTOS: 0.4,
+      INFO_PRODUCTOS: 0.2,
       LEAD_CALIENTE: 0.3,
       COMPRA_LIBRO_PROCESO: 0.1,
       SOPORTE_ESTUDIANTE: 0.2,

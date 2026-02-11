@@ -26,14 +26,28 @@ class ScoringService {
     else if (daysSinceLastUpdate < 7) score += 10;
     else if (daysSinceLastUpdate > 30) score -= 20;
     
-    // ═══════════════════════════════════════
-    // EMOCIÓN (20 puntos max)
-    // ═══════════════════════════════════════
-    if (interactionData.emocion) {
-      if (interactionData.emocion === 'ANSIOSO') score += 20;
-      if (interactionData.emocion === 'FRUSTRADO') score += 15;
-      if (interactionData.emocion === 'MOTIVADO') score += 10;
-    }
+// ═══════════════════════════════════════
+// EMOCIÓN (20 puntos max) — set real del clasificador
+// ═══════════════════════════════════════
+if (interactionData.emocion) {
+  const raw = String(interactionData.emocion || '').toUpperCase().trim();
+
+  // ✅ Mapear legacy (por si llega algo viejo)
+  const legacyMap = {
+    'ANSIOSO': 'DESPERATE',
+    'FRUSTRADO': 'FRUSTRATED',
+    'MOTIVADO': 'EXCITED'
+  };
+
+  const e = legacyMap[raw] || raw;
+
+  if (e === 'DESPERATE') score += 20;
+  else if (e === 'ANGRY') score += 15;
+  else if (e === 'FRUSTRATED') score += 12;
+  else if (e === 'EXCITED') score += 10;
+  else if (e === 'CURIOUS') score += 6;
+  else if (e === 'NEUTRAL') score += 0;
+}
     
     // ═══════════════════════════════════════
     // CATEGORÍA (40 puntos max)

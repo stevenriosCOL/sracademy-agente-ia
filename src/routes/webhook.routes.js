@@ -175,24 +175,63 @@ if (esImagen) {
     tiene_comprobante: !!compraPendiente?.comprobante_url
   });
 
-  // CASO 1: Sin compra pendiente
-  if (!compraPendiente) {
-    Logger.info('ℹ️ Imagen sin compra pendiente', { subscriber_id });
-    
-    const response = `Recibí una imagen 📸. ¿Es un comprobante de pago del libro? Responde SÍ o NO.`;
-    
+// CASO 1: Sin compra pendiente
+if (!compraPendiente) {
+  Logger.info('ℹ️ Imagen sin compra pendiente', { subscriber_id });
+
+  // ✅ Si el flujo de libro está activo por historial, tratar directo como comprobante
+  const memoryService = require('../services/memory.service');
+  const memoriaImg = await memoryService.getHistory(subscriber_id, 12);
+
+  const histImg = memoriaImg
+    .map(m => {
+      const t = typeof m === 'string' ? m : (m.content || m.message || '');
+      return (t || '').toLowerCase();
+    })
+    .join(' ');
+
+  const flujoLibroActivoPorHistorial =
+    histImg.includes('libro') ||
+    histImg.includes('30 días') ||
+    histImg.includes('30 dias') ||
+    histImg.includes('peor enemigo') ||
+    histImg.includes('combo') ||
+    histImg.includes('audiolibro') ||
+    histImg.includes('mp3');
+
+  if (flujoLibroActivoPorHistorial) {
+    const response = `Perfecto ${nombre}, recibí tu comprobante 📸
+
+Estoy verificando el pago ahora mismo.`;
+
     await saveAnalytics(
       subscriber_id,
       nombre,
-      'IMAGEN_SIN_CONTEXTO',
+      'COMPROBANTE_LIBRO_SIN_COMPRA',
       mensaje,
       response,
       false,
       startTime
     );
-    
+
     return res.json({ response });
   }
+
+  // ✅ Si no hay flujo libro, se mantiene el comportamiento anterior (pregunta)
+  const response = `Recibí una imagen 📸. ¿Es un comprobante de pago del libro? Responde SÍ o NO.`;
+
+  await saveAnalytics(
+    subscriber_id,
+    nombre,
+    'IMAGEN_SIN_CONTEXTO',
+    mensaje,
+    response,
+    false,
+    startTime
+  );
+
+  return res.json({ response });
+}
 
   // CASO 2: Ya tiene comprobante guardado (verificar PRIMERO)
   if (compraPendiente.comprobante_url && compraPendiente.comprobante_url.trim() !== '') {
@@ -633,20 +672,21 @@ Y cuéntame qué error te aparece al intentar entrar en www.stevenriosfx.com/sig
 // incluso si el intent NO salió SOPORTE_ESTUDIANTE.
 const supportQuery = extractSupportQuery({ mensaje: rawSupportInput });
 const supportInput = (rawSupportInput || '').trim();
-const isSoloToken =
-  /^[A-Za-z0-9]{8,20}$/.test(supportInput) &&
-  /[A-Za-z]/.test(supportInput) &&
-  !/^\d+$/.test(supportInput);
 
 const startsWithUsuarioId = /^usuario[_\s-]?id\b/i.test(supportInput);
 
-const shouldTrySupport = Boolean(
+// ✅ Bloquear soporte cuando sea flujo de libro/combo
+const isLibroFlow =
+  ['LIBRO_30_DIAS', 'COMPRA_LIBRO_PROCESO', 'LEAD_CALIENTE'].includes(intent) ||
+  Boolean(contextoCompra);
+
+// ✅ Endurecer trigger (sin token suelto)
+const shouldTrySupport = !isLibroFlow && Boolean(
   supportQuery &&
   (
     intent === 'SOPORTE_ESTUDIANTE' ||
-    isSoloToken ||
-    startsWithUsuarioId ||
-    supportQuery.param === 'email'
+    supportQuery.param === 'email' ||
+    startsWithUsuarioId
   )
 );
 
@@ -884,23 +924,19 @@ function extractSupportQuery({ mensaje }) {
   const emailMatch = mensaje.match(emailRegex);
   if (emailMatch) return { param: 'email', value: emailMatch[0] };
 
-  // 2) usuario_id explícito (usuario_id=XXX o "usuario id: XXX")
-  const usuarioIdExplicit = mensaje.match(/usuario[_\s-]?id\s*[:=]\s*([A-Za-z0-9]{4,32})/i)
-    || mensaje.match(/usuario[_\s-]?id\s+([A-Za-z0-9]{4,32})/i);
-  if (usuarioIdExplicit && usuarioIdExplicit[1]) {
-    return { param: 'usuario_id', value: usuarioIdExplicit[1] };
-  }
+  // 2) usuario_id explícito SOLO si viene declarado como usuario_id / usuario id
+  // Ejemplos válidos:
+  // "usuario_id: eagam", "usuario id eagam", "usuario-id = eagam271288"
+  const usuarioIdMatch = mensaje.match(/^usuario[_\s-]?id[:\s-]*([A-Za-z0-9_-]{6,40})/i)
+    || mensaje.match(/usuario[_\s-]?id\s*[:=]\s*([A-Za-z0-9_-]{6,40})/i);
 
-  // 3) Token alfanumérico suelto (por si el usuario pega solo el ID)
-  // Ejemplo real: VwtacerpMI
-  const trimmed = mensaje.trim();
-  const soloToken = /^[A-Za-z0-9]{6,32}$/.test(trimmed);
-  if (soloToken) {
-    return { param: 'usuario_id', value: trimmed };
+  if (usuarioIdMatch && usuarioIdMatch[1]) {
+    return { param: 'usuario_id', value: usuarioIdMatch[1] };
   }
 
   return null;
 }
+
 
 function buildSupportStatusResponse(nombre, supportData, planUrl) {
   const latestMembership = supportData?.latest_membership;
@@ -989,10 +1025,15 @@ async function saveAnalytics(subscriberId, nombre, categoria, mensaje, respuesta
     const scoringService = require('../services/scoring.service');
     const lead = await supabaseService.getLead(subscriberId);
     
-    const heatScore = scoringService.calculateHeatScore(
-      lead || { updated_at: new Date() },
-      { categoria, emocion: emotion }
-    );
+let heatScore = scoringService.calculateHeatScore(
+  lead || { updated_at: new Date() },
+  { categoria, emocion: emotion }
+);
+
+// ✅ Cap de heatScore en small talk corto
+if (categoria === 'CONVERSACION_GENERAL' && (mensaje || '').trim().length <= 20) {
+  heatScore = Math.min(heatScore, 20);
+}
     
     const priority = scoringService.getPriority(heatScore);
     
