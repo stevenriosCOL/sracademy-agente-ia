@@ -638,6 +638,7 @@ const isTokenInMsg =
   /^[A-Za-z0-9]{8,20}$/.test((mensaje || '').trim()) &&
   /[A-Za-z]/.test((mensaje || '').trim()) &&
   !/^\d+$/.test((mensaje || '').trim());
+const accessExclusions = /(chat\s*bot|chatbot|gpt|grupo|whatsapp|libro|combo|audiolibro|mp3)/i;
 
 const isAccessNoData =
   accessHeuristics.test(mensaje || '') &&
