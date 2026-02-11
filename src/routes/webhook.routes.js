@@ -389,6 +389,25 @@ Si es urgente, Steven te responderá por este mismo chat. Gracias por tu pacienc
 
 const datosCapturaResult = await detectarDatosComprador(subscriber_id, mensaje);
 
+// Si respondió solo método numérico (1/2/3/4), convertirlo a texto para que
+// el flujo de contextoCompra y el agente lo entiendan de inmediato.
+if (!datosCapturaResult.detected && datosCapturaResult.metodoPago) {
+  const metodoAlias = {
+    mercado_pago: 'mercado pago',
+    llave_breb: 'llave bre b',
+    bancolombia: 'bancolombia',
+    criptomonedas: 'usdt'
+  };
+
+  mensaje = metodoAlias[datosCapturaResult.metodoPago] || mensaje;
+
+  Logger.info('🔢 Método de pago detectado por número', {
+    subscriber_id,
+    metodoPago: datosCapturaResult.metodoPago,
+    mensajeNormalizado: mensaje
+  });
+}
+
 if (datosCapturaResult.detected) {
   // ✅ FIX BUG 3: VALIDAR CONTEXTO DE LIBRO
   const memoryService = require('../services/memory.service');
