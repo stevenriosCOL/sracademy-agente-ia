@@ -605,7 +605,7 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
 
     productoLibro = mencionaCombo ? 'combo' : 'pdf';
 
-    if (flujoLibroActivo && (intent === 'LEAD_CALIENTE' || intent === 'COMPRA_LIBRO_PROCESO')) {
+    if (flujoLibroActivo && ['LEAD_CALIENTE', 'COMPRA_LIBRO_PROCESO', 'LIBRO_30_DIAS'].includes(intent)) {
       const paises = ['colombia', 'méxico', 'mexico', 'argentina', 'chile', 'perú', 'peru', 'españa', 'spain', 'venezuela', 'ecuador'];
       const tienePais = paises.some(p => ultimosMensajes.includes(p) || mensaje.toLowerCase().includes(p));
 
@@ -641,6 +641,7 @@ const isTokenInMsg =
 
 const isAccessNoData =
   accessHeuristics.test(mensaje || '') &&
+  !accessExclusions.test(mensaje || '') &&
   !hasEmailInMsg &&
   !hasUsuarioIdInMsg &&
   !isTokenInMsg;
@@ -677,6 +678,7 @@ const startsWithUsuarioId = /^usuario[_\s-]?id\b/i.test(supportInput);
 
 // ✅ Bloquear soporte cuando sea flujo de libro/combo
 const isLibroFlow =
+  flujoLibroActivo ||
   ['LIBRO_30_DIAS', 'COMPRA_LIBRO_PROCESO', 'LEAD_CALIENTE'].includes(intent) ||
   Boolean(contextoCompra);
 
@@ -1150,23 +1152,40 @@ async function detectarDatosComprador(subscriberId, mensaje) {
     const telefonoRegex = /[\+]?[0-9]{10,15}/;
     const telefonoMatch = mensaje.match(telefonoRegex);
 
+    // 🔥 Detectar método por número
+    let metodoPago = null;
+
+    const mLower = (mensaje || '').trim().toLowerCase();
+
+    const metodoByNumber = {
+      '1': 'mercado_pago',
+      '2': 'llave_breb',
+      '3': 'bancolombia',
+      '4': 'criptomonedas'
+    };
+
+    if (metodoByNumber[mLower]) {
+      metodoPago = metodoByNumber[mLower];
+    }
+
     // Si tiene email Y teléfono, probablemente son datos del comprador
     if (emailMatch && telefonoMatch) {
       // Extraer nombre (todas las líneas que no sean email ni teléfono)
-      const lineas = mensaje.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const lineas = mensaje
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0);
 
       let nombre = '';
+
       for (const linea of lineas) {
-        // Si la línea no contiene @ ni números de teléfono, probablemente es el nombre
         if (!linea.includes('@') && !telefonoRegex.test(linea)) {
           nombre = linea;
           break;
         }
       }
 
-      // Si no encontramos nombre en líneas separadas, intentar extraer del texto completo
       if (!nombre) {
-        // Buscar palabras antes del email que sean probablemente el nombre
         const textoSinEmail = mensaje.split(emailMatch[0])[0].trim();
         const textoSinTelefono = textoSinEmail.replace(telefonoRegex, '').trim();
         nombre = textoSinTelefono || 'Cliente';
@@ -1176,11 +1195,21 @@ async function detectarDatosComprador(subscriberId, mensaje) {
         detected: true,
         nombre: nombre,
         email: emailMatch[0],
-        celular: telefonoMatch[0]
+        celular: telefonoMatch[0],
+        metodoPago: metodoPago // 👈 agregado
+      };
+    }
+
+    // Si solo respondió número del método
+    if (metodoPago) {
+      return {
+        detected: false,
+        metodoPago: metodoPago
       };
     }
 
     return { detected: false };
+
   } catch (error) {
     Logger.error('Error detectando datos comprador:', error);
     return { detected: false };
