@@ -938,9 +938,11 @@ respuesta = await agentsService.executeAgent(
     const esLeadCaliente = intent === 'LEAD_CALIENTE' || urgencia === 'alta';
 
     if (fueEscalado || esLeadCaliente || intent === 'SOPORTE_ESTUDIANTE') {
-      const tipo = esLeadCaliente ? 'LEAD_CALIENTE' :
-        intent === 'SOPORTE_ESTUDIANTE' ? 'SOPORTE_ESTUDIANTE' :
-          intent;
+const tipo =
+  intent === 'SOPORTE_ESTUDIANTE' ? 'SOPORTE_ESTUDIANTE' :
+  intent === 'SITUACION_DELICADA' ? 'SITUACION_DELICADA' :
+  esLeadCaliente ? 'LEAD_CALIENTE' :
+  intent;
       await notifyAdmin(subscriber_id, nombre, mensaje, tipo);
     }
 
