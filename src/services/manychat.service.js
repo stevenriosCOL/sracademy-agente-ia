@@ -65,8 +65,7 @@ async sendMessage(subscriberId, text) {
             }
           ]
         }
-      },
-      message_tag: 'ACCOUNT_UPDATE'
+      }
     };
 
     // ✅ CAMBIO: Usar axios directo con URL completa
@@ -157,4 +156,3 @@ Requiere atención humana.`;
 }
 
 module.exports = new ManyChatService();
-
