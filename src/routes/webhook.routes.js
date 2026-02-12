@@ -196,6 +196,22 @@ router.post('/', async (req, res) => {
         return res.json({ response });
       }
 
+      // Cerrar flujo si el usuario confirma entrega, sin importar subestado
+if (flowService.isDeliveryConfirmedMessage(mensaje)) {
+  await flowService.closeLibroFlow(supabaseService, subscriber_id);
+  const response = `Excelente ${nombre} 🙌 Me alegra que ya recibiste todo. Cierro tu solicitud de entrega.`;
+  await saveAnalytics(
+    subscriber_id,
+    nombre,
+    'FSM_LIBRO_CERRADO',
+    mensaje,
+    response,
+    false,
+    startTime
+  );
+  return res.json({ response });
+}
+
       const flowResult = await flowService.handleActiveLibroFlow({
         flow: currentFlow,
         message: mensaje,
