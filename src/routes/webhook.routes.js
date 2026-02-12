@@ -1318,14 +1318,22 @@ async function notifyAdmin(subscriberId, nombre, mensaje, tipo) {
       notification += `\n\n⏰ Mensaje fuera de horario (${colombiaHour}:00 Colombia)`;
     }
 
-    await manychatService.notifyAdmin({
+    const adminResult = await manychatService.notifyAdmin({
       subscriberId,
       nombre,
       mensaje: notification,
       timestamp: new Date().toISOString(),
     });
 
-    Logger.info("📢 Admin notificado", { tipo, subscriberId });
+    if (adminResult?.success) {
+      Logger.info("📢 Admin notificado", { tipo, subscriberId });
+    } else {
+      Logger.error("❌ Error notificando admin", {
+        tipo,
+        subscriberId,
+        error: adminResult?.error || 'unknown_error'
+      });
+    }
   } catch (error) {
     Logger.error("Error notificando admin:", error);
   }
@@ -1410,4 +1418,3 @@ async function detectarDatosComprador(subscriberId, mensaje) {
 }
 
 module.exports = router;
-

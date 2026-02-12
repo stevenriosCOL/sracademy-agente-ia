@@ -26,6 +26,15 @@ class ManyChatService {
     });
   }
 
+  sanitizeText(text) {
+    // ManyChat/WhatsApp rejects some formats and oversized payloads.
+    const cleaned = String(text || '')
+      .replace(/\*/g, '')
+      .replace(/\r/g, '')
+      .trim();
+    return cleaned.length > 900 ? `${cleaned.substring(0, 900)}...` : cleaned;
+  }
+
   /**
    * Enviar mensaje al usuario vía WhatsApp (ManyChat)
    */
@@ -36,9 +45,11 @@ async sendMessage(subscriberId, text) {
       return { success: false, error: 'API key no configurada' };
     }
 
-    Logger.info('📤 Enviando a ManyChat', { 
+    const safeText = this.sanitizeText(text);
+
+    Logger.info('📤 Enviando a ManyChat', {
       subscriberId, 
-      textLength: text.length 
+      textLength: safeText.length
     });
 
     const payload = {
@@ -50,7 +61,7 @@ async sendMessage(subscriberId, text) {
           messages: [
             {
               type: 'text',
-              text: text
+              text: safeText
             }
           ]
         }
@@ -88,11 +99,13 @@ async sendMessage(subscriberId, text) {
     };
 
   } catch (error) {
+    const errorMessages = error.response?.data?.details?.messages || null;
     Logger.error('❌ Error enviando a ManyChat:', {
       subscriberId,
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
+      details_messages: errorMessages
     });
 
     return {
@@ -144,5 +157,4 @@ Requiere atención humana.`;
 }
 
 module.exports = new ManyChatService();
-
 
