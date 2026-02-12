@@ -10,6 +10,7 @@ const manychatService = require('../services/manychat.service');
 const { detectLanguage } = require('../utils/language.util');
 const Logger = require('../utils/logger.util');
 const supportApiService = require('../services/support-api.service');
+const flowService = require('../services/flow.service');
 
 
 // ✅ Whisper service
@@ -137,6 +138,86 @@ router.post('/', async (req, res) => {
     }
 
     Logger.info('📨 [SR Academy] Mensaje recibido', { subscriber_id, nombre, mensaje });
+
+    // =====================================
+    // FLUJO DETERMINÍSTICO LIBRO/COMBO (FSM)
+    // =====================================
+    let currentFlow = await supabaseService.getFlowState(subscriber_id);
+    let flowState = currentFlow?.flow_state || 'IDLE';
+
+    // Expirar flujo activo por inactividad (48h)
+    if (
+      flowService.isActiveState(flowState) &&
+      (currentFlow?.flow_updated_at || currentFlow?.updated_at) &&
+      (Date.now() - new Date(currentFlow.flow_updated_at || currentFlow.updated_at).getTime()) > (48 * 60 * 60 * 1000)
+    ) {
+      await supabaseService.clearFlowState(subscriber_id);
+      flowState = 'IDLE';
+      currentFlow = null;
+    }
+
+    // Inicio de flujo libro/combo desde estado inactivo
+    if (!flowService.isActiveState(flowState) && flowService.shouldStartLibroFlow(mensaje)) {
+      const selectedProduct = flowService.detectProduct(mensaje);
+      const started = await supabaseService.updateFlowState(subscriber_id, {
+        flow_state: 'LIBRO_COUNTRY',
+        selected_product: selectedProduct
+      });
+
+      if (started) {
+        const response = '¡Perfecto! ¿Desde qué país nos escribes para darte las opciones de pago correctas?';
+        await saveAnalytics(
+          subscriber_id,
+          nombre,
+          'FSM_LIBRO_COUNTRY',
+          mensaje,
+          response,
+          false,
+          startTime
+        );
+        return res.json({ response });
+      }
+    }
+
+    // Manejo de flujo activo
+    if (flowService.isActiveState(flowState) && currentFlow) {
+      if (flowState === 'LIBRO_POSTSALE' && flowService.isDeliveryConfirmedMessage(mensaje)) {
+        await flowService.closeLibroFlow(supabaseService, subscriber_id);
+        const response = `Excelente ${nombre} 🙌 Me alegra que ya recibiste todo. Cierro tu solicitud de entrega.`;
+        await saveAnalytics(
+          subscriber_id,
+          nombre,
+          'FSM_LIBRO_CERRADO',
+          mensaje,
+          response,
+          false,
+          startTime
+        );
+        return res.json({ response });
+      }
+
+      const flowResult = await flowService.handleActiveLibroFlow({
+        flow: currentFlow,
+        message: mensaje,
+        subscriberId: subscriber_id,
+        nombre,
+        supabaseService,
+        notifyAdmin
+      });
+
+      if (flowResult?.handled) {
+        await saveAnalytics(
+          subscriber_id,
+          nombre,
+          `FSM_${flowState}`,
+          mensaje,
+          flowResult.response,
+          false,
+          startTime
+        );
+        return res.json({ response: flowResult.response });
+      }
+    }
 
 // ═══════════════════════════════════════════════════════════════
 // DETECTAR SI ES IMAGEN (comprobante de pago)
@@ -622,7 +703,14 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
       ultimosMensajes.includes('audiolibro') ||
       ultimosMensajes.includes('mp3');
 
-    productoLibro = mencionaCombo ? 'combo' : 'pdf';
+    const mencionaPdf =
+  mensaje.toLowerCase().includes('pdf') ||
+  ultimosMensajes.includes('pdf') ||
+  ultimosMensajes.includes('19.99');
+
+if (mencionaCombo) productoLibro = 'combo';
+else if (mencionaPdf) productoLibro = 'pdf';
+else productoLibro = null; // <- NO asumir
 
     if (flujoLibroActivo && ['LEAD_CALIENTE', 'COMPRA_LIBRO_PROCESO', 'LIBRO_30_DIAS'].includes(intent)) {
       const paises = ['colombia', 'méxico', 'mexico', 'argentina', 'chile', 'perú', 'peru', 'españa', 'spain', 'venezuela', 'ecuador'];
@@ -642,6 +730,54 @@ Te confirmo la recepción del libro en máximo 30 minutos después de verificar 
 
       Logger.info('📚 CONTEXTO COMPRA LIBRO', { contextoCompra, productoLibro, tienePais, tieneMetodo, tieneDatos });
     }
+
+        // ✅ FIX ROBUSTO: método numérico determinístico (ANTES del agente)
+    const m = (mensaje || '').trim().toLowerCase();
+    const metodoMap = { '1':'MERCADO_PAGO', '2':'BREB', '3':'BANCOLOMBIA', '4':'CRIPTO' };
+
+if (contextoCompra === 'ESPERANDO_DATOS' && metodoMap[m]) {
+  const metodo = metodoMap[m];
+
+  // ✅ si no sabemos producto, primero pedirlo (no asumir pdf)
+  if (!productoLibro) {
+    const response = `Perfecto ${nombre}. Antes de pasarte los datos de pago, confirma:
+
+1) Libro PDF ($19.99)
+2) Combo PDF + MP3 ($29.99)
+
+Responde 1 o 2.`;
+    return res.json({ response });
+  }
+
+  if (metodo === 'CRIPTO') {
+    return res.json({ response: `Perfecto ${nombre}. Para cripto (USDT), te paso los datos por este chat.` });
+  }
+
+  const response = agentsService.buildPaymentInstructions({
+    nombre,
+    metodo,
+    producto: productoLibro
+  });
+
+  return res.json({ response });
+}
+
+// ✅ Producto por número (cuando el bot pregunta PDF vs Combo)
+const p = (mensaje || '').trim();
+if (contextoCompra === 'ESPERANDO_DATOS' && (p === '1' || p === '2') && !productoLibro) {
+  const producto = p === '2' ? 'combo' : 'pdf';
+
+  return res.json({
+    response: `Listo ${nombre} ✓ Confirmado: ${producto === 'combo' ? 'Combo PDF + MP3 ($29.99)' : 'Libro PDF ($19.99)'}.
+
+Ahora dime el método de pago:
+
+1) Mercado Pago
+2) Llave Bre-B
+3) Bancolombia
+4) Cripto (USDT)`
+  });
+}
 
 // ═══════════════════════════════════════
 // EJECUTAR AGENTE IA
@@ -742,18 +878,39 @@ if (shouldTrySupport) {
   }
 }
 
+// Si el usuario respondió solo método, inyectar producto del contexto
+const metodoSoloRegex = /^(mercado pago|mercadopago|llave bre b|bre b|breb|bancolombia|usdt|bitcoin|cripto)$/i;
+if (contextoCompra === 'ESPERANDO_DATOS' && metodoSoloRegex.test((mensaje || '').trim())) {
+  mensaje = `${mensaje} ${productoLibro}`; // "llave bre b combo" o "bancolombia pdf"
+}
+
+// Si estamos pidiendo datos de compra y el mensaje trae solo método,
+// inyectar producto para evitar fallback a PDF.
+if (
+  contextoCompra === 'ESPERANDO_DATOS' &&
+  /^(1|2|3|4|mercado pago|mercadopago|llave bre b|bre b|breb|bancolombia|usdt|bitcoin|cripto)$/i.test((mensaje || '').trim()) &&
+  productoLibro === 'combo' &&
+  !/(combo|audiolibro|mp3|pdf|libro)/i.test(mensaje || '')
+) {
+  mensaje = `${mensaje} combo`;
+}
+
+
+Logger.info('TRACE_PRE_AGENT', { subscriber_id, contextoCompra, productoLibro, mensaje });
+
 // ✅ Si NO se resolvió por soporte, sigue normal (NO rompe nada)
 if (!respuesta) {
-  respuesta = await agentsService.executeAgent(
-    intent,
-    emotion,
-    subscriber_id,
-    nombre,
-    mensaje,
-    idioma,
-    nivel,
-    contextoCompra
-  );
+respuesta = await agentsService.executeAgent(
+  intent,
+  emotion,
+  subscriber_id,
+  nombre,
+  mensaje,
+  idioma,
+  nivel,
+  contextoCompra,
+  productoLibro
+);
 }
 
 
@@ -1237,6 +1394,4 @@ async function detectarDatosComprador(subscriberId, mensaje) {
 }
 
 module.exports = router;
-
-
 

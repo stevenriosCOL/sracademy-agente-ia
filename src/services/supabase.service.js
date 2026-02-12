@@ -857,10 +857,85 @@ class SupabaseService {
       return false;
     }
   }
+
+  // ═══════════════════════════════════════
+// FLOW STATE (FSM) - Persistente
+// ═══════════════════════════════════════
+
+async getFlowState(subscriberId) {
+  try {
+    const { data, error } = await this.client
+      .from('sracademy_leads')
+      .select('flow_state, selected_product, selected_country, selected_method, flow_updated_at, proof_received_at')
+      .eq('subscriber_id', subscriberId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      Logger.error('Error obteniendo flow state:', error);
+      return null;
+    }
+
+    return data || null;
+  } catch (error) {
+    Logger.error('Error en getFlowState:', error);
+    return null;
+  }
+}
+
+async updateFlowState(subscriberId, updates) {
+  try {
+    const payload = {
+      subscriber_id: subscriberId,
+      ...updates,
+      flow_updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await this.client
+      .from('sracademy_leads')
+      .upsert(payload, { onConflict: 'subscriber_id' });
+
+    if (error) {
+      Logger.error('Error actualizando flow state:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    Logger.error('Error en updateFlowState:', error);
+    return false;
+  }
+}
+
+async clearFlowState(subscriberId) {
+  try {
+    const { error } = await this.client
+      .from('sracademy_leads')
+      .update({
+        flow_state: 'IDLE',
+        selected_product: null,
+        selected_country: null,
+        selected_method: null,
+        proof_received_at: null,
+        flow_updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('subscriber_id', subscriberId);
+
+    if (error) {
+      Logger.error('Error limpiando flow state:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    Logger.error('Error en clearFlowState:', error);
+    return false;
+  }
+}
 }
 
 module.exports = new SupabaseService();
-
 
 
 

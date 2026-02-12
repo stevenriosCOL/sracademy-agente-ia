@@ -95,7 +95,7 @@ Después de pagar, envíame:
   /**
    * Ejecuta el agente correspondiente según intent y emotion
    */
-  async executeAgent(intent, emotion, subscriberId, nombre, mensaje, idioma, nivel = null, contextoCompra = null) {
+  async executeAgent(intent, emotion, subscriberId, nombre, mensaje, idioma, nivel = null, contextoCompra = null, productoLibro = null) {
     Logger.info('🤖 Ejecutando agente SR Academy', { intent, emotion, subscriberId, nivel, contextoCompra });
 
     // ESCALAMIENTO no usa IA, retorna mensaje estático
@@ -113,24 +113,64 @@ Después de pagar, envíame:
       return this.getCursoCompletadoMessage(nombre);
     }
 
-    // ✅ RESPUESTAS DETERMINÍSTICAS EN COMPRA (evita que GPT invente montos)
-    if (contextoCompra === 'ESPERANDO_DATOS') {
-      const lower = (mensaje || '').toLowerCase();
+// ✅ RESPUESTAS DETERMINÍSTICAS EN COMPRA (evita que GPT invente montos)
+if (contextoCompra === 'ESPERANDO_DATOS') {
 
-      // detectar método
-      let metodo = null;
-      if (lower.includes('bancolombia')) metodo = 'BANCOLOMBIA';
-      if (lower.includes('bre b') || lower.includes('breb') || lower.includes('llave')) metodo = 'BREB';
-      if (lower.includes('mercado pago') || lower.includes('mpago')) metodo = 'MERCADO_PAGO';
+  Logger.info('TRACE_AGENT_DATOS', {
+    subscriberId,
+    contextoCompra,
+    productoLibroIn: productoLibro,
+    mensaje
+  });
 
-      // detectar producto (si no lo dice aquí, intenta inferir por el texto actual)
-      let producto = this.detectProductoLibroFromText(mensaje) || 'pdf'; // ✅ default seguro
+  const lower = (mensaje || '').toLowerCase().trim();
 
-      // si el usuario NO especifica producto, NO asumas combo; pdf por defecto
-      if (metodo) {
-        return this.buildPaymentInstructions({ nombre, metodo, producto });
-      }
-    }
+  // ✅ detectar método
+  let metodo = null;
+  if (lower.includes('bancolombia')) metodo = 'BANCOLOMBIA';
+  if (lower.includes('bre b') || lower.includes('breb') || lower.includes('llave')) metodo = 'BREB';
+  if (lower.includes('mercado pago') || lower.includes('mercadopago') || lower.includes('mpago')) metodo = 'MERCADO_PAGO';
+  if (lower.includes('usdt') || lower.includes('cripto') || lower.includes('bitcoin')) metodo = 'CRIPTO';
+
+  // ✅ Producto: primero viene por parámetro (webhook.routes ya lo detecta),
+  // si NO viene, permitir detectarlo por texto actual.
+  let producto = productoLibro || this.detectProductoLibroFromText(mensaje);
+
+  // ✅ Si el usuario respondió 1 o 2 (producto), resolver producto de forma determinística
+  // 1 => pdf, 2 => combo
+  if (!producto && (lower === '1' || lower === '2')) {
+    producto = lower === '2' ? 'combo' : 'pdf';
+  }
+
+  // ✅ GUARDRAIL: si aún no sabemos el producto, NO asumir nada
+  if (!producto) {
+    return `¿Confirmas cuál deseas pagar?
+1) Libro PDF ($19.99)
+2) Combo PDF + MP3 ($29.99)
+
+Responde 1 o 2 y te paso los datos de pago.`;
+  }
+
+  // ✅ Si el método es cripto, respuesta determinística (sin buildPaymentInstructions)
+  if (metodo === 'CRIPTO') {
+    return `Perfecto ${nombre}. Para pagar en cripto (USDT), te paso los datos por este chat.`;
+  }
+
+  // ✅ Solo si ya tenemos método + producto, construir instrucciones
+  if (metodo) {
+    return this.buildPaymentInstructions({ nombre, metodo, producto });
+  }
+
+  // ✅ Si tenemos producto pero NO método, pedir método sin GPT
+  return `Perfecto ${nombre}. ¿Con qué método vas a pagar?
+
+1) Mercado Pago
+2) Llave Bre-B
+3) Bancolombia
+4) Cripto (USDT)
+
+Responde 1, 2, 3 o 4.`;
+}
 
 
     try {

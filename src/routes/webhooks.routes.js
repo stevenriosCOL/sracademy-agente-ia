@@ -228,11 +228,14 @@ router.post('/libro-entrega', createWebhookRateLimiter(), async (req, res) => {
 
     if (config.MOCK_LIBRO_ENTREGA) {
       mockState.logs.push({ ...logPayload, enviado_at: new Date().toISOString() });
-    } else {
-      await supabaseService.createLibroEmailLog(logPayload);
-      await supabaseService.markLibroComprador(compra.subscriber_id, 1);
-      await supabaseService.marcarEnvioPdf(compra.id, 'aprobado');
-    }
+} else {
+  await supabaseService.createLibroEmailLog(logPayload);
+  await supabaseService.markLibroComprador(compra.subscriber_id, 1);
+  await supabaseService.marcarEnvioPdf(compra.id, 'aprobado');
+
+  // ✅ CIERRE FSM (para que no quede pegado el flujo de compra)
+  await supabaseService.clearFlowState(compra.subscriber_id);
+}
 
     const adminMessage = `📧 PDF ENVIADO EXITOSAMENTE
 
