@@ -249,6 +249,15 @@ Monto: $${compraPendiente.monto_usd} USD`,
   }
 
   if (state === 'LIBRO_POSTSALE') {
+    const m = normalize(message);
+    const wantsTopicSwitch = /(hablar con steven|asesor|ayuda|soporte|membres|membresia|membres[ií]as|plan|academy|professional|master|elite|se bloqueo|bloque[oó])/.test(m);
+
+    // Si el usuario cambia de tema, liberamos el flujo para que el agente responda normal.
+    if (wantsTopicSwitch) {
+      await closeLibroFlow(supabaseService, subscriberId);
+      return { handled: false };
+    }
+
     return { handled: true, response: 'Tu pago está en verificación. Si ya pasaron 2 horas, escribe "hablar con Steven".' };
   }
 
