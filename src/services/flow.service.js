@@ -160,6 +160,11 @@ function isDeliveryConfirmedMessage(message = '') {
   return m.includes('ya me llego') || m.includes('ya me llegó') || m.includes('recibi') || m.includes('recibí') || m.includes('todo bien');
 }
 
+function isShortThanksMessage(message = '') {
+  const m = normalize(message);
+  return m === 'ok' || m === 'ok gracias' || m === 'gracias' || m === 'dale' || m === 'listo' || m === 'perfecto';
+}
+
 async function handleActiveLibroFlow({ flow, message, subscriberId, nombre, supabaseService, notifyAdmin }) {
   const state = flow?.flow_state || 'IDLE';
 
@@ -249,6 +254,24 @@ Monto: $${compraPendiente.monto_usd} USD`,
   }
 
   if (state === 'LIBRO_POSTSALE') {
+    const latestCompra = await supabaseService.getLatestCompraBySubscriber(subscriberId);
+    const compraEntregada = Boolean(
+      latestCompra &&
+      (
+        latestCompra.estado === 'aprobado' ||
+        latestCompra.accesos_enviados === true ||
+        latestCompra.pdf_enviado === true
+      )
+    );
+
+    if (compraEntregada) {
+      await closeLibroFlow(supabaseService, subscriberId);
+      return {
+        handled: true,
+        response: 'Tu acceso ya fue entregado ✓ Si no lo ves, revisa Spam/Promociones. Si necesitas ayuda, escribe "soporte acceso".'
+      };
+    }
+
     const m = normalize(message);
     const wantsTopicSwitch = /(hablar con steven|asesor|ayuda|soporte|membres|membresia|membres[ií]as|plan|academy|professional|master|elite|se bloqueo|bloque[oó])/.test(m);
 
@@ -256,6 +279,13 @@ Monto: $${compraPendiente.monto_usd} USD`,
     if (wantsTopicSwitch) {
       await closeLibroFlow(supabaseService, subscriberId);
       return { handled: false };
+    }
+
+    if (isShortThanksMessage(message)) {
+      return {
+        handled: true,
+        response: '¡Con gusto! Tu pago sigue en verificación. Si pasan 2 horas, escribe "hablar con Steven" y te ayudamos de inmediato.'
+      };
     }
 
     return { handled: true, response: 'Tu pago está en verificación. Si ya pasaron 2 horas, escribe "hablar con Steven".' };

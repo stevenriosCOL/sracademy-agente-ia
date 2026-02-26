@@ -527,6 +527,28 @@ class SupabaseService {
     }
   }
 
+  async getLatestCompraBySubscriber(subscriberId) {
+    try {
+      const { data, error } = await this.client
+        .from('libro_compras')
+        .select('*')
+        .eq('subscriber_id', subscriberId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        Logger.error('Error obteniendo última compra:', error);
+        return null;
+      }
+
+      return data || null;
+    } catch (error) {
+      Logger.error('Error en getLatestCompraBySubscriber:', error);
+      return null;
+    }
+  }
+
   async updateCompraComprobante(compraId, comprobanteUrl) {
     try {
       const { error } = await this.client
@@ -936,6 +958,5 @@ async clearFlowState(subscriberId) {
 }
 
 module.exports = new SupabaseService();
-
 
 

@@ -480,6 +480,81 @@ Si es urgente, Steven te responderá por este mismo chat. Gracias por tu pacienc
       return res.json({ response });
     }
 
+    // Manejo especial para usuarios con accesibilidad visual
+    if (detectAccessibilityNeed(mensaje)) {
+      const response = `Claro ${nombre}. Te lo envío corto y claro:
+
+1) Libro PDF: $19.99
+2) Combo PDF + Audiolibro MP3: $29.99
+3) Membresías desde $297
+
+Si prefieres atención por audio, escribe "hablar con Steven".`;
+
+      await saveAnalytics(subscriber_id, nombre, 'ACCESIBILIDAD', mensaje, response, false, startTime);
+      return res.json({ response });
+    }
+
+    // Si ya es compradora y solo saluda, responder en modo postventa (no reiniciar pitch de venta).
+    if (isSimpleGreeting(mensaje)) {
+      const latestCompra = await supabaseService.getLatestCompraBySubscriber(subscriber_id);
+      const esClienteLibro = Boolean(
+        latestCompra &&
+        (
+          latestCompra.estado === 'aprobado' ||
+          latestCompra.accesos_enviados === true ||
+          latestCompra.pdf_enviado === true
+        )
+      );
+
+      if (esClienteLibro) {
+        const response = `Hola ${nombre} 👋 Bienvenida de nuevo.
+
+Veo que ya tienes una compra registrada. Si necesitas ayuda con acceso o entrega, dime y te ayudo ahora mismo.`;
+
+        await saveAnalytics(subscriber_id, nombre, 'POSTVENTA_SALUDO', mensaje, response, false, startTime);
+        return res.json({ response });
+      }
+    }
+
+    // Regla de intención primero: si pregunta precio, responder precio directo en la primera respuesta.
+    if (isPriceQuestion(mensaje)) {
+      const response = `Claro ${nombre}. Precios actuales:
+
+1) Libro PDF: $19.99
+2) Combo PDF + Audiolibro: $29.99
+3) Membresías: desde $297
+
+Comparativa completa: ${LINKS.PRICING}
+¿Quieres libro o membresía?`;
+
+      await saveAnalytics(subscriber_id, nombre, 'PRECIO_DIRECTO', mensaje, response, false, startTime);
+      return res.json({ response });
+    }
+
+    // Si llega un número suelto fuera de flujo activo, pedir aclaración para evitar respuestas incoherentes.
+    if (/^[1-5]$/.test((mensaje || '').trim())) {
+      const memoryService = require('../services/memory.service');
+      const memoriaCorta = await memoryService.getHistory(subscriber_id, 8);
+      const textoCorto = memoriaCorta
+        .map(m => (m?.content || '').toLowerCase())
+        .join(' ');
+
+      const numeroTieneContextoCompra = /(método|metodo|mercado pago|llave|bancolombia|cripto|responde 1|responde 1, 2, 3|producto|pdf|combo)/.test(textoCorto);
+      const numeroTieneContextoFeedback = /(encuesta|califica|calificación|calificacion|1⭐|2⭐⭐|3⭐⭐⭐|4⭐⭐⭐⭐|5⭐⭐⭐⭐⭐)/.test(textoCorto);
+
+      if (!numeroTieneContextoCompra && !numeroTieneContextoFeedback) {
+        const response = `¿Ese número es para:
+1) Método de pago
+2) Calificación de servicio
+3) Elegir producto
+
+Dime cuál opción y te respondo exacto.`;
+
+        await saveAnalytics(subscriber_id, nombre, 'NUMERO_AMBIGUO', mensaje, response, false, startTime);
+        return res.json({ response });
+      }
+    }
+
 // ═══════════════════════════════════════════════════════════════
 // DETECTAR DATOS DEL COMPRADOR (nombre + email + celular)
 // ═══════════════════════════════════════════════════════════════
@@ -1096,6 +1171,45 @@ function detectSituacionDelicada(mensaje) {
   ];
   const m = mensaje.toLowerCase();
   return keywords.some(kw => m.includes(kw));
+}
+
+function detectAccessibilityNeed(mensaje = '') {
+  const m = (mensaje || '').toLowerCase();
+  return (
+    m.includes('no veo bien') ||
+    m.includes('letras pequeñas') ||
+    m.includes('letra pequeña') ||
+    m.includes('audio') ||
+    m.includes('nota de voz')
+  );
+}
+
+function isSimpleGreeting(mensaje = '') {
+  const m = (mensaje || '').trim().toLowerCase();
+  return [
+    'hola',
+    'hola buenas',
+    'hola buenas tardes',
+    'buenas',
+    'buenas tardes',
+    'buen día',
+    'buen dia',
+    'saludos'
+  ].includes(m);
+}
+
+function isPriceQuestion(mensaje = '') {
+  const m = (mensaje || '').toLowerCase();
+  return (
+    m.includes('precio') ||
+    m.includes('cuánto cuesta') ||
+    m.includes('cuanto cuesta') ||
+    m.includes('coste') ||
+    m.includes('valor') ||
+    m.includes('planes') ||
+    m.includes('membresía') ||
+    m.includes('membresia')
+  );
 }
 
 function detectLibroMencion(mensaje) {

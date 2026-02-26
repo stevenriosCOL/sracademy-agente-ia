@@ -182,14 +182,13 @@ Responde 1, 2, 3 o 4.`;
 const hasRag = Array.isArray(ragResults) && ragResults.length > 0;
 
 if (intent === 'INFO_PRODUCTOS' && !hasRag) {
-  const response = `Tenemos 4 programas según tu nivel 📚
+  const response = `Claro, precios base de SR Academy:
 
-Primero te recomiendo el curso gratuito de 12 horas:
-${this.LINKS.CURSO_GRATUITO}
+📘 Libro PDF: $${this.LINKS.PRECIO_LIBRO_USD}
+🎧 Combo PDF + MP3: $${this.LINKS.PRECIO_COMBO_USD}
+💎 Membresías: desde $297 USD
 
-Y aquí puedes ver precios y comparar todo:
-${this.LINKS.PRICING}
-
+Comparativa completa: ${this.LINKS.PRICING}
 ¿Ya tienes experiencia en trading o empezarías desde cero?`;
 
   // ✅ Guardar en memoria
@@ -1487,5 +1486,4 @@ Ya le notifiqué y te responderá por este mismo chat en cuanto pueda.
 }
 
 module.exports = new AgentsService();
-
 
