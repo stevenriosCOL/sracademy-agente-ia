@@ -126,12 +126,6 @@ async sendMessage(subscriberId, text) {
 
       const { subscriberId, nombre, mensaje, timestamp } = escalationData;
 
-      // Si el admin es el mismo que el suscriptor (ej: admin probando el bot), omitir notificación silenciosamente.
-      if (String(this.adminId) === String(subscriberId)) {
-        Logger.info('ℹ️ Admin es el mismo suscriptor, omitiendo auto-notificación.', { adminId: this.adminId });
-        return { success: true, skipped: true };
-      }
-
       const adminMessage = `🚨 *NOTIFICACIÓN SR ACADEMY*
 
 *Cliente:* ${nombre}
