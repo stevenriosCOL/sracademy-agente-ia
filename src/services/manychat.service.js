@@ -126,13 +126,10 @@ async sendMessage(subscriberId, text) {
 
       const { subscriberId, nombre, mensaje, timestamp } = escalationData;
 
-      // Guardrail: evita enviar alertas internas al mismo cliente por configuración errónea.
+      // Si el admin es el mismo que el suscriptor (ej: admin probando el bot), omitir notificación silenciosamente.
       if (String(this.adminId) === String(subscriberId)) {
-        Logger.error('❌ ADMIN_SUBSCRIBER_ID coincide con subscriberId del cliente. Notificación bloqueada.', {
-          adminId: this.adminId,
-          subscriberId
-        });
-        return { success: false, error: 'Admin ID coincide con subscriberId del cliente' };
+        Logger.info('ℹ️ Admin es el mismo suscriptor, omitiendo auto-notificación.', { adminId: this.adminId });
+        return { success: true, skipped: true };
       }
 
       const adminMessage = `🚨 *NOTIFICACIÓN SR ACADEMY*
